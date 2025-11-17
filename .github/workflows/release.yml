@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: tiiuae-gp-gui
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
+      - name: Build gp-gui
+        run: nix build .#gp-gui --print-build-logs
+
+      - name: Create tarball
+        run: |
+          VERSION="${{ github.ref_name }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ inputs.version }}"
+          fi
+          mkdir -p dist
+          tar -czf dist/gp-gui-${VERSION}-x86_64-linux.tar.gz -C result/bin gp-gui
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || inputs.version }}
+          name: Release ${{ github.ref_name || inputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          body: |
+            ## GlobalProtect VPN GUI ${{ github.ref_name || inputs.version }}
+
+            ### Installation
+
+            ```bash
+            # Extract the tarball
+            tar -xzf gp-gui-${{ github.ref_name || inputs.version }}-x86_64-linux.tar.gz
+
+            # Run with sudo (required for VPN)
+            sudo ./gp-gui
+            ```
+
+            ### With Nix
+
+            ```bash
+            nix run github:tiiuae/gp-gui/${{ github.ref_name || inputs.version }}
+            ```
+
+            ### Verify checksums
+
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```

@@ -1,0 +1,20 @@
+# Code owners for gp-gui
+
+# Default owners for everything
+* @tiiuae/gp-gui-maintainers
+
+# Nix configuration
+*.nix @tiiuae/nix-team
+flake.lock @tiiuae/nix-team
+
+# Rust backend
+gui/src-tauri/ @tiiuae/backend-team
+Cargo.toml @tiiuae/backend-team
+Cargo.lock @tiiuae/backend-team
+
+# Frontend
+gui/src/ @tiiuae/frontend-team
+gui/package.json @tiiuae/frontend-team
+
+# CI/CD
+.github/ @tiiuae/devops-team

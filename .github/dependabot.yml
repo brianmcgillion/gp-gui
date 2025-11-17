@@ -1,0 +1,51 @@
+version: 2
+updates:
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Cargo dependencies
+  - package-ecosystem: "cargo"
+    directory: "/gui/src-tauri"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "rust"
+    groups:
+      tauri:
+        patterns:
+          - "tauri*"
+      serde:
+        patterns:
+          - "serde*"
+
+  # npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/gui"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "npm"
+    groups:
+      react:
+        patterns:
+          - "react*"
+          - "@types/react*"
+      mui:
+        patterns:
+          - "@mui/*"
+      dev-dependencies:
+        dependency-type: "development"
