@@ -1,0 +1,20 @@
+# Code owners for gp-gui
+
+# Default owners for everything
+* @brianmcgillion
+
+# Nix configuration
+*.nix @brianmcgillion
+flake.lock @brianmcgillion
+
+# Rust backend
+gui/src-tauri/ @brianmcgillion
+Cargo.toml @brianmcgillion
+Cargo.lock @brianmcgillion
+
+# Frontend
+gui/src/ @brianmcgillion
+gui/package.json @brianmcgillion
+
+# CI/CD
+.github/ @brianmcgillion
