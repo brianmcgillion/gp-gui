@@ -44,7 +44,7 @@ jobs:
           nix build .#checks.x86_64-linux.gp-gui-deps --print-build-logs
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: gp-gui-${{ github.sha }}
           path: result/bin/gp-gui
