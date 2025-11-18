@@ -16,7 +16,7 @@ jobs:
     name: Build with Nix
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Nix
         uses: cachix/install-nix-action@v27
@@ -54,7 +54,7 @@ jobs:
     name: Nix Checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Nix
         uses: cachix/install-nix-action@v27
@@ -81,7 +81,7 @@ jobs:
     name: Cargo Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Nix
         uses: cachix/install-nix-action@v27
@@ -106,7 +106,7 @@ jobs:
     name: Frontend Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Nix
         uses: cachix/install-nix-action@v27
