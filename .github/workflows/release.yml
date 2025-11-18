@@ -31,9 +31,11 @@ jobs:
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
+        if: ${{ secrets.CACHIX_AUTH_TOKEN != '' }}
         with:
           name: gp-gui
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+        continue-on-error: true
 
       - name: Build gp-gui
         run: nix build .#gp-gui --print-build-logs

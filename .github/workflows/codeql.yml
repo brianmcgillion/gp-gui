@@ -37,7 +37,7 @@ jobs:
             accept-flake-config = true
 
       - name: Build Rust code
-        run: nix develop -c bash -c 'cd gui/src-tauri && cargo build --release'
+        run: nix develop --impure -c bash -c 'cd gui/src-tauri && cargo build --release'
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
@@ -71,7 +71,7 @@ jobs:
             accept-flake-config = true
 
       - name: Build frontend
-        run: nix develop -c bash -c 'cd gui && npm install && npm run build'
+        run: nix develop --impure -c bash -c 'cd gui && npm install && npm run build'
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

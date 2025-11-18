@@ -28,10 +28,12 @@ jobs:
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
+        if: ${{ secrets.CACHIX_AUTH_TOKEN != '' }}
         with:
           name: gp-gui
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
           skipPush: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
 
       - name: Check Nix flake
         run: nix flake check --all-systems --show-trace
@@ -66,10 +68,12 @@ jobs:
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
+        if: ${{ secrets.CACHIX_AUTH_TOKEN != '' }}
         with:
           name: gp-gui
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
           skipPush: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
 
       - name: Run treefmt check
         run: nix build .#checks.x86_64-linux.treefmt --print-build-logs
@@ -93,13 +97,15 @@ jobs:
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
+        if: ${{ secrets.CACHIX_AUTH_TOKEN != '' }}
         with:
           name: gp-gui
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
           skipPush: true
+        continue-on-error: true
 
       - name: Run Rust tests
-        run: nix develop -c cargo test --all
+        run: nix develop --impure -c cargo test --all
         working-directory: gui/src-tauri
 
   frontend-test:
@@ -117,8 +123,8 @@ jobs:
             accept-flake-config = true
 
       - name: Build frontend
-        run: nix develop -c bash -c 'cd gui && npm install && npm run build'
+        run: nix develop --impure -c bash -c 'cd gui && npm install && npm run build'
 
       - name: Run frontend tests (if any)
-        run: nix develop -c bash -c 'cd gui && npm test || true'
+        run: nix develop --impure -c bash -c 'cd gui && npm test || true'
         continue-on-error: true
