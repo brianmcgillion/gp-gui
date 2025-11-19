@@ -34,3 +34,4 @@ Thumbs.db
 .devenv/
 .pre-commit-config.yaml
 .devenv-root
+.aider*

@@ -124,6 +124,10 @@
             "*.swp"
             "*.swo"
             "*~"
+
+            # Files with timestamp-only changes in Nix sandbox
+            "SECURITY.md"
+            "nix/README.md"
           ];
 
           formatter = {

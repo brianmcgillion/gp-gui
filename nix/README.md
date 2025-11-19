@@ -120,6 +120,7 @@ In CI, run `nix flake check` to:
 - Run all tests
 - Check formatting on all files
 - Verify code quality
+- Ensure it is ready for merge.
 
 ## Adding New Modules
 
