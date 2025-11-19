@@ -24,10 +24,6 @@
       url = "github:cachix/devenv";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    devenv-root = {
-      url = "path:./.devenv-root";
-      flake = false;
-    };
   };
 
   outputs =

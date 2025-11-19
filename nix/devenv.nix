@@ -17,12 +17,13 @@
         # Disable containers - we don't use them
         containers = pkgs.lib.mkForce { };
 
-        # Devenv root directory - use the special devenv-root input
+        # Devenv root directory - auto-detect from git root
         devenv.root =
           let
-            devenvRootFileContent = builtins.readFile inputs.devenv-root.outPath;
+            # Find git root dynamically
+            gitRoot = builtins.toString (pkgs.lib.cleanSource ./.);
           in
-          pkgs.lib.mkIf (devenvRootFileContent != "") devenvRootFileContent;
+          gitRoot;
 
         # Import devenv modules
         imports = [ ];
