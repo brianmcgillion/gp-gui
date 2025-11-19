@@ -87,7 +87,14 @@
           }
           {
             name = "PKG_CONFIG_PATH";
-            value = "${pkgs.openssl.dev}/lib/pkgconfig";
+            value = pkgs.lib.makeSearchPath "lib/pkgconfig" [
+              pkgs.openssl.dev
+              pkgs.glib.dev
+              pkgs.gtk3.dev
+              pkgs.cairo.dev
+              pkgs.webkitgtk_4_1.dev
+              pkgs.librsvg.dev
+            ];
           }
         ];
 

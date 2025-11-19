@@ -34,7 +34,7 @@
           rustfmt.enable = true;
 
           # JavaScript/TypeScript
-          # Prettier for JS, TS, TSX, JSON, HTML, CSS, Markdown
+          # Prettier for JS, TS, TSX, JSON, HTML, CSS, Markdown, YAML
           prettier.enable = true;
           prettier.includes = [
             "*.js"
@@ -45,6 +45,10 @@
             "*.html"
             "*.css"
             "*.md"
+            "*.yml"
+            "*.yaml"
+            # Format all .github files (workflows, templates, etc.)
+            ".github/**/*"
           ];
 
           # Bash
