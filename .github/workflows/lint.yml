@@ -22,7 +22,7 @@ jobs:
             accept-flake-config = true
 
       - name: Run Clippy
-        run: nix develop -c bash -c 'cd gui/src-tauri && cargo clippy --all-targets --all-features -- -D warnings'
+        run: nix develop --impure -c bash -c 'cd gui/src-tauri && cargo clippy --all-targets --all-features -- -D warnings'
 
   rustfmt:
     name: Rustfmt
@@ -39,7 +39,7 @@ jobs:
             accept-flake-config = true
 
       - name: Check Rust formatting
-        run: nix develop -c bash -c 'cd gui/src-tauri && cargo fmt --all -- --check'
+        run: nix develop --impure -c bash -c 'cd gui/src-tauri && cargo fmt --all -- --check'
 
   nixfmt:
     name: Nix Formatting
@@ -56,7 +56,7 @@ jobs:
             accept-flake-config = true
 
       - name: Check Nix formatting
-        run: nix develop -c treefmt --fail-on-change
+        run: nix develop --impure -c treefmt --fail-on-change
 
   eslint:
     name: ESLint
@@ -73,7 +73,7 @@ jobs:
             accept-flake-config = true
 
       - name: Run ESLint
-        run: nix develop -c bash -c 'cd gui && npm install && npm run lint || true'
+        run: nix develop --impure -c bash -c 'cd gui && npm install && npm run lint || true'
         continue-on-error: true
 
   actionlint:

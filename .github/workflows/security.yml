@@ -25,7 +25,7 @@ jobs:
             accept-flake-config = true
 
       - name: Run cargo-audit
-        run: nix develop -c bash -c 'cd gui/src-tauri && cargo install cargo-audit && cargo audit'
+        run: nix develop --impure -c bash -c 'cd gui/src-tauri && cargo install cargo-audit && cargo audit'
         continue-on-error: true
 
   npm-audit:
@@ -43,7 +43,7 @@ jobs:
             accept-flake-config = true
 
       - name: Run npm audit
-        run: nix develop -c bash -c 'cd gui && npm install && npm audit --audit-level=moderate'
+        run: nix develop --impure -c bash -c 'cd gui && npm install && npm audit --audit-level=moderate'
         continue-on-error: true
 
   trivy:
