@@ -14,8 +14,11 @@
       devenv.shells.default = {
         name = "gp-gui";
 
-        # Disable containers - we don't use them
+        # Disable features that require state directories (for CI compatibility)
         containers = pkgs.lib.mkForce { };
+        processes = pkgs.lib.mkForce { };
+        services = pkgs.lib.mkForce { };
+        tasks = pkgs.lib.mkForce { };
 
         # Devenv root directory - auto-detect from git root
         devenv.root =

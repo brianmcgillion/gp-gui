@@ -122,6 +122,9 @@ jobs:
           skipPush: true
         continue-on-error: true
 
+      - name: Build frontend (required for Tauri)
+        run: nix develop --impure -c bash -c 'cd gui && npm install && npm run build'
+
       - name: Run Rust tests
         run: nix develop --impure -c cargo test --all
         working-directory: gui/src-tauri
