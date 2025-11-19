@@ -61,14 +61,23 @@
       pre-commit = {
         settings = {
           hooks = {
-            # Format all code
+            # === FORMATTING (via treefmt) ===
+            # treefmt handles ALL formatting: Nix, Rust, JS/TS, Shell, Markdown, TOML
+            # For CI: uses --fail-on-change via checks.treefmt
+            # For local: auto-formats files before commit
             treefmt = {
               enable = true;
               package = config.treefmt.build.wrapper;
               stages = [ "pre-commit" ];
+              pass_filenames = false;
+              # Local pre-commit: format files (no --fail-on-change)
+              # CI check uses separate derivation with --fail-on-change
+              entry = "${config.treefmt.build.wrapper}/bin/treefmt --no-cache";
             };
 
-            # Ensure files end with newline
+            # === VALIDATION HOOKS (not handled by treefmt) ===
+
+            # File consistency checks
             end-of-file-fixer = {
               enable = true;
               stages = [ "pre-commit" ];
@@ -79,7 +88,6 @@
               ];
             };
 
-            # Remove trailing whitespace
             trim-trailing-whitespace = {
               enable = true;
               stages = [ "pre-commit" ];
@@ -90,60 +98,39 @@
               ];
             };
 
-            # Check for merge conflicts
+            # Git checks
             check-merge-conflicts = {
               enable = true;
               stages = [ "pre-commit" ];
             };
 
-            # Check JSON syntax
+            # Syntax validation
             check-json = {
               enable = true;
               stages = [ "pre-commit" ];
+              excludes = [
+                # TypeScript config files use JSONC (JSON with comments)
+                "tsconfig.*\\.json$"
+              ];
             };
 
-            # Check TOML syntax
             check-toml = {
               enable = true;
               stages = [ "pre-commit" ];
             };
 
-            # Check YAML syntax
             check-yaml = {
               enable = true;
               stages = [ "pre-commit" ];
             };
 
-            # Detect private keys
+            # Security checks
             detect-private-keys = {
               enable = true;
               stages = [ "pre-commit" ];
             };
 
-            # Nix-specific checks
-            nixfmt = {
-              enable = true;
-              package = pkgs.nixfmt-rfc-style;
-              stages = [ "pre-commit" ];
-            };
-
-            statix = {
-              enable = true;
-              stages = [ "pre-commit" ];
-            };
-
-            deadnix = {
-              enable = true;
-              stages = [ "pre-commit" ];
-            };
-
-            # Rust checks
-            rustfmt = {
-              enable = true;
-              stages = [ "pre-commit" ];
-              entry = "${pkgs.rustfmt}/bin/cargo-fmt fmt -- --check --color always";
-            };
-
+            # Rust compilation/linting (beyond formatting)
             cargo-check = {
               enable = true;
               stages = [ "pre-commit" ];

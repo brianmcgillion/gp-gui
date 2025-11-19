@@ -133,16 +133,27 @@ update_npm_hash() {
 
   info "Computing new npm dependencies hash..."
 
-  # Compute the hash
-  NEW_HASH=$(nix hash path gui --mode nar --sri 2> /dev/null || echo "")
+  # Get current hash from packages/gp-gui/default.nix
+  CURRENT_HASH=$(grep -oP 'hash = "\K[^"]+' packages/gp-gui/default.nix | head -1 || echo "")
 
-  if [[ -z $NEW_HASH ]]; then
-    warn "Could not compute npm hash"
+  if [[ -z $CURRENT_HASH ]]; then
+    warn "Could not find current npm hash in packages/gp-gui/default.nix"
     return 0
   fi
 
-  # Get current hash from packages/gp-gui/default.nix
-  CURRENT_HASH=$(grep -oP 'hash = "\K[^"]+' packages/gp-gui/default.nix | head -1 || echo "")
+  # Try to build npm-deps and capture the hash mismatch error
+  # The error will contain the expected hash
+  info "Building npm-deps to get correct hash..."
+  BUILD_OUTPUT=$(nix build .#gp-gui-deps 2>&1 || true)
+
+  # Extract the "got:" hash from the error message
+  NEW_HASH=$(echo "$BUILD_OUTPUT" | grep -oP 'got:\s+\K(sha256-[A-Za-z0-9+/=]+)' | head -1)
+
+  if [[ -z $NEW_HASH ]]; then
+    # If no hash mismatch, dependencies haven't changed
+    info "npm dependencies hash unchanged"
+    return 0
+  fi
 
   if [[ $CURRENT_HASH != "$NEW_HASH" ]]; then
     info "npm hash changed:"
@@ -153,6 +164,15 @@ update_npm_hash() {
     if [[ -f "packages/gp-gui/default.nix" ]]; then
       sed -i "s|hash = \"$CURRENT_HASH\"|hash = \"$NEW_HASH\"|g" packages/gp-gui/default.nix
       success "Updated npm hash in packages/gp-gui/default.nix"
+
+      # Verify the fix worked
+      info "Verifying npm hash fix..."
+      if nix build .#gp-gui-deps --no-link 2>&1 | grep -q "hash mismatch"; then
+        error "Hash update failed - please check manually"
+        return 1
+      else
+        success "npm hash verified successfully"
+      fi
     fi
   else
     info "npm hash unchanged"

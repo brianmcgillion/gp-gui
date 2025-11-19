@@ -33,3 +33,4 @@ Thumbs.db
 .direnv/
 .devenv/
 .pre-commit-config.yaml
+.devenv-root
