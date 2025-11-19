@@ -31,4 +31,5 @@ Thumbs.db
 
 # Nix
 .direnv/
+.devenv/
 .pre-commit-config.yaml

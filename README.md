@@ -36,10 +36,15 @@ sudo ./result/bin/gp-gui
 ```bash
 # Enter development environment
 nix develop
-
-# Or use devenv
-devenv up
 ```
+
+The development shell provides:
+
+- Rust toolchain (1.85.0) with rust-analyzer
+- Node.js 22 and npm
+- All Tauri dependencies (webkitgtk, gtk3, etc.)
+- gpclient and gpauth binaries
+- Helper commands: `build-gui`, `npm-install`, `cargo-test`
 
 ## Usage
 
@@ -166,10 +171,6 @@ GPL-3.0 - See LICENSE file for details
 ## Acknowledgments
 
 This project is built upon [GlobalProtect-openconnect](https://github.com/yuezk/GlobalProtect-openconnect) by yuezk, which provides the core VPN client functionality (`gpclient` and `gpauth`). We are grateful for their work in creating an open-source alternative to the official GlobalProtect client.
-
-## Authors
-
-Brian McGillion
 
 ## Contributing
 

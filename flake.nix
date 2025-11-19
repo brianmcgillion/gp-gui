@@ -20,8 +20,8 @@
       url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    devenv = {
-      url = "github:cachix/devenv";
+    devshell = {
+      url = "github:numtide/devshell";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -32,7 +32,7 @@
       imports = [
         ./nix/treefmt.nix
         ./nix/checks.nix
-        ./nix/devenv.nix
+        ./nix/devshell.nix
       ];
 
       systems = [
