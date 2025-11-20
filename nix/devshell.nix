@@ -45,6 +45,9 @@
               pkgs.gtk3
               pkgs.cairo
               pkgs.glib
+              pkgs.gdk-pixbuf
+              pkgs.pango
+              pkgs.atk
               pkgs.dbus
               pkgs.openssl
               pkgs.librsvg
@@ -101,6 +104,9 @@
               pkgs.openssl.dev
               pkgs.glib.dev
               pkgs.gtk3.dev
+              pkgs.gdk-pixbuf.dev
+              pkgs.pango.dev
+              pkgs.atk.dev
               pkgs.cairo.dev
               pkgs.webkitgtk_4_1.dev
               pkgs.librsvg.dev
