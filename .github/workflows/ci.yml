@@ -126,8 +126,10 @@ jobs:
         run: nix develop --impure -c bash -c 'cd gui && npm install && npm run build'
 
       - name: Run Rust tests
-        run: nix develop --impure -c cargo test --all
-        working-directory: gui/src-tauri
+        run: nix develop --impure -c bash -c 'cd gui/src-tauri && cargo test --all'
+
+      - name: Run Clippy
+        run: nix develop --impure -c bash -c 'cd gui/src-tauri && cargo clippy --all-targets --all-features -- -D warnings'
 
   frontend-test:
     name: Frontend Tests

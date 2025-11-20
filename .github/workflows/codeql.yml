@@ -44,6 +44,9 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
+      - name: Build frontend (required for Tauri)
+        run: nix develop --impure -c bash -c 'cd gui && npm install && npm run build'
+
       - name: Build Rust code
         run: nix develop --impure -c bash -c 'cd gui/src-tauri && cargo build --release'
 

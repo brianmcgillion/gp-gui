@@ -33,7 +33,7 @@ jobs:
             accept-flake-config = true
 
       - name: Run cargo-audit
-        run: nix develop --impure -c bash -c 'cd gui/src-tauri && cargo install cargo-audit && cargo audit'
+        run: nix develop --impure -c bash -c 'cargo install cargo-audit && cd gui/src-tauri && cargo audit'
         continue-on-error: true
 
   npm-audit:
