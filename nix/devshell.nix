@@ -10,6 +10,16 @@
       config,
       ...
     }:
+    let
+      # Use the same Rust toolchain as the build (from rust-toolchain.toml or rust-overlay)
+      rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+        extensions = [
+          "rust-src"
+          "clippy"
+          "rustfmt"
+        ];
+      };
+    in
     {
       devshells.default = {
 
@@ -17,48 +27,40 @@
           name = "gp-gui";
 
           # Packages available in the development shell
-          packages =
-            # let
-            #   # Rust toolchain with rust-src extension
-            #   rustToolchain = pkgs.rust-bin.stable."1.90.0".default.override {
-            #     extensions = [ "rust-src" ];
-            #   };
-            # in
-            [
-              # Rust development tools
-              #       rustToolchain
-              pkgs.rust-analyzer
+          packages = [
+            # Rust development tools
+            rustToolchain
+            pkgs.rust-analyzer
 
-              # Build essentials
-              pkgs.pkg-config
-              pkgs.openssl.dev
+            # Build essentials
+            pkgs.pkg-config
+            pkgs.openssl.dev
 
-              # Node.js and npm for frontend
-              pkgs.nodejs_22
+            # Node.js and npm for frontend
+            pkgs.nodejs_22
 
-              # GlobalProtect client binaries
-              pkgs.gpclient
-              pkgs.gpauth
+            # GlobalProtect client binaries
+            pkgs.gpclient
+            pkgs.gpauth
 
-              # Tauri dependencies
-              pkgs.webkitgtk_4_1
-              pkgs.gtk3
-              pkgs.cairo
-              pkgs.glib
-              pkgs.gdk-pixbuf
-              pkgs.pango
-              pkgs.atk
-              pkgs.dbus
-              pkgs.openssl
-              pkgs.librsvg
+            # Tauri dependencies
+            pkgs.webkitgtk_4_1
+            pkgs.gtk3
+            pkgs.cairo
+            pkgs.glib
+            pkgs.pango
+            pkgs.atk
+            pkgs.dbus
+            pkgs.openssl
+            pkgs.librsvg
 
-              # Additional tools
-              pkgs.curl
-              pkgs.wget
-              pkgs.jq
-            ]
-            # Add pre-commit tools (includes treefmt wrapper)
-            ++ config.pre-commit.settings.enabledPackages;
+            # Additional tools
+            pkgs.curl
+            pkgs.wget
+            pkgs.jq
+          ]
+          # Add pre-commit tools (includes treefmt wrapper)
+          ++ config.pre-commit.settings.enabledPackages;
 
           # Install pre-commit hooks for local development
           startup.hook.text = config.pre-commit.installationScript;
@@ -96,7 +98,7 @@
         env = [
           {
             name = "RUST_SRC_PATH";
-            value = "${pkgs.rust-bin.stable."1.85.0".rust-src}/lib/rustlib/src/rust/library";
+            value = "${rustToolchain}/lib/rustlib/src/rust/library";
           }
           {
             name = "PKG_CONFIG_PATH";
@@ -104,7 +106,6 @@
               pkgs.openssl.dev
               pkgs.glib.dev
               pkgs.gtk3.dev
-              pkgs.gdk-pixbuf.dev
               pkgs.pango.dev
               pkgs.atk.dev
               pkgs.cairo.dev
