@@ -12,7 +12,7 @@ let
   # Crane lib for building Rust projects with better caching
   craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
-  # Build gp-gui
+  # Build gp-gui with craneLib
   gp-gui = pkgs.callPackage ./gp-gui {
     inherit craneLib;
   };

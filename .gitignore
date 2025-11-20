@@ -35,3 +35,6 @@ Thumbs.db
 .pre-commit-config.yaml
 .devenv-root
 .aider*
+
+# Act (local GitHub Actions testing)
+.actrc

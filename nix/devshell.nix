@@ -43,16 +43,18 @@
             pkgs.gpclient
             pkgs.gpauth
 
-            # Tauri dependencies
-            pkgs.webkitgtk_4_1
+            # Tauri dependencies - GTK3 and related libraries
+            # Note: gdk-pixbuf is provided transitively by gtk3
+            # librsvg is only needed in the build, not in devshell
             pkgs.gtk3
+            pkgs.gtk3.dev
+            pkgs.webkitgtk_4_1
             pkgs.cairo
             pkgs.glib
             pkgs.pango
             pkgs.atk
             pkgs.dbus
             pkgs.openssl
-            pkgs.librsvg
 
             # Additional tools
             pkgs.curl
@@ -106,11 +108,24 @@
               pkgs.openssl.dev
               pkgs.glib.dev
               pkgs.gtk3.dev
+              pkgs.harfbuzz.dev # Required by pango
               pkgs.pango.dev
               pkgs.atk.dev
+              pkgs.gdk-pixbuf.dev # Needed for pkgconfig, runtime comes from gtk3
               pkgs.cairo.dev
               pkgs.webkitgtk_4_1.dev
-              pkgs.librsvg.dev
+              pkgs.libsoup_3.dev
+            ];
+          }
+          {
+            name = "LD_LIBRARY_PATH";
+            value = pkgs.lib.makeLibraryPath [
+              pkgs.gtk3 # Includes gdk-pixbuf transitively
+              pkgs.cairo
+              pkgs.glib
+              pkgs.pango
+              pkgs.atk
+              pkgs.webkitgtk_4_1
             ];
           }
         ];
@@ -132,6 +147,7 @@
           echo "  cargo-test        - Run Rust tests"
           echo "  update-deps       - Update all dependencies (Nix, Cargo, npm)"
           echo "  show-packages     - Show installed packages"
+          echo "  test-workflows    - Test GitHub Actions workflows locally"
           echo ""
           echo "🚀 Development:"
           echo "  Run as root:         sudo ./result/bin/gp-gui"

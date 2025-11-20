@@ -72,7 +72,7 @@
               stages = [ "pre-commit" ];
               pass_filenames = false;
               # Use --fail-on-change for CI checks to prevent file modifications
-              entry = "${config.treefmt.build.wrapper}/bin/treefmt --no-cache --fail-on-change";
+              entry = "${config.treefmt.build.wrapper}/bin/treefmt --ci";
             };
 
             # === VALIDATION HOOKS (not handled by treefmt) ===

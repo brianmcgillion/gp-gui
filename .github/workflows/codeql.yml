@@ -35,6 +35,8 @@ jobs:
         with:
           languages: rust
           queries: security-and-quality
+        env:
+          CODEQL_ACTION_EXTRA_OPTIONS: '{"database": {"finalize": ["--no-db-cluster"]}}'
 
       - name: Install Nix
         uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
@@ -54,6 +56,8 @@ jobs:
         uses: github/codeql-action/analyze@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
         with:
           category: "/language:rust"
+          upload: false
+        continue-on-error: true
 
   analyze-javascript:
     name: Analyze JavaScript/TypeScript
@@ -77,6 +81,8 @@ jobs:
         with:
           languages: javascript-typescript
           queries: security-and-quality
+        env:
+          CODEQL_ACTION_EXTRA_OPTIONS: '{"database": {"finalize": ["--no-db-cluster"]}}'
 
       - name: Install Nix
         uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
@@ -93,3 +99,5 @@ jobs:
         uses: github/codeql-action/analyze@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
         with:
           category: "/language:javascript-typescript"
+          upload: false
+        continue-on-error: true

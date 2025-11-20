@@ -133,25 +133,39 @@ update_npm_hash() {
 
   info "Computing new npm dependencies hash..."
 
+  # Path to the Nix file containing the npmDeps hash
+  NIX_FILE="packages/gp-gui/default.nix"
+
+  if [[ ! -f $NIX_FILE ]]; then
+    error "Cannot find $NIX_FILE"
+    return 1
+  fi
+
   # Get current hash from packages/gp-gui/default.nix
-  CURRENT_HASH=$(grep -oP 'hash = "\K[^"]+' packages/gp-gui/default.nix | head -1 || echo "")
+  CURRENT_HASH=$(grep -oP 'hash = "\K[^"]+' "$NIX_FILE" | head -1 || echo "")
 
   if [[ -z $CURRENT_HASH ]]; then
-    warn "Could not find current npm hash in packages/gp-gui/default.nix"
+    warn "Could not find current npm hash in $NIX_FILE"
     return 0
   fi
 
-  # Try to build npm-deps and capture the hash mismatch error
-  # The error will contain the expected hash
-  info "Building npm-deps to get correct hash..."
-  BUILD_OUTPUT=$(nix build .#gp-gui-deps 2>&1 || true)
+  info "Current npm hash: $CURRENT_HASH"
+
+  # Set a fake hash to force a rebuild
+  FAKE_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  sed -i "s|hash = \"$CURRENT_HASH\"|hash = \"$FAKE_HASH\"|g" "$NIX_FILE"
+
+  # Try to build and capture the hash mismatch error
+  info "Building to determine correct hash..."
+  BUILD_OUTPUT=$(nix build .#gp-gui --no-link 2>&1 || true)
 
   # Extract the "got:" hash from the error message
   NEW_HASH=$(echo "$BUILD_OUTPUT" | grep -oP 'got:\s+\K(sha256-[A-Za-z0-9+/=]+)' | head -1)
 
   if [[ -z $NEW_HASH ]]; then
-    # If no hash mismatch, dependencies haven't changed
-    info "npm dependencies hash unchanged"
+    # Restore original hash if we couldn't determine the new one
+    warn "Could not determine new hash, restoring original"
+    sed -i "s|hash = \"$FAKE_HASH\"|hash = \"$CURRENT_HASH\"|g" "$NIX_FILE"
     return 0
   fi
 
@@ -160,21 +174,21 @@ update_npm_hash() {
     info "  Old: $CURRENT_HASH"
     info "  New: $NEW_HASH"
 
-    # Update the hash in default.nix
-    if [[ -f "packages/gp-gui/default.nix" ]]; then
-      sed -i "s|hash = \"$CURRENT_HASH\"|hash = \"$NEW_HASH\"|g" packages/gp-gui/default.nix
-      success "Updated npm hash in packages/gp-gui/default.nix"
+    # Update to the correct hash
+    sed -i "s|hash = \"$FAKE_HASH\"|hash = \"$NEW_HASH\"|g" "$NIX_FILE"
+    success "Updated npm hash in $NIX_FILE"
 
-      # Verify the fix worked
-      info "Verifying npm hash fix..."
-      if nix build .#gp-gui-deps --no-link 2>&1 | grep -q "hash mismatch"; then
-        error "Hash update failed - please check manually"
-        return 1
-      else
-        success "npm hash verified successfully"
-      fi
+    # Verify the fix worked
+    info "Verifying npm hash fix..."
+    if nix build .#gp-gui --no-link 2>&1 | grep -q "hash mismatch\|ERROR: npmDepsHash"; then
+      error "Hash update failed - manual intervention required"
+      return 1
+    else
+      success "npm hash verified successfully"
     fi
   else
+    # Hash unchanged, restore it
+    sed -i "s|hash = \"$FAKE_HASH\"|hash = \"$CURRENT_HASH\"|g" "$NIX_FILE"
     info "npm hash unchanged"
   fi
 }

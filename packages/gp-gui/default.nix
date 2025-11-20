@@ -25,7 +25,7 @@ let
   # Build npm dependencies separately (offline, reproducible)
   npmDeps = pkgs.fetchNpmDeps {
     src = ./../../gui;
-    hash = "sha256-kitsyxqpTRnFHG2DdrT2MQLvUZeBmkh3fMgwGtV2eL0=";
+    hash = "sha256-IBs9q7q+Jh40wDephv9p1mUGKlDLg+SZARtRBqaCnDs=";
   };
 
   # Common arguments for crane (Rust only)
@@ -46,7 +46,9 @@ let
     buildInputs = with pkgs; [
       openssl
       # GTK3 with WebKitGTK (required by Rust tauri bindings)
+      # Note: gtk3 includes gdk-pixbuf transitively
       gtk3
+      gtk3.dev
       webkitgtk_4_1
       libsoup_3
       glib
@@ -54,8 +56,8 @@ let
       gsettings-desktop-schemas
       cairo
       pango
-      gdk-pixbuf
       atk
+      dbus
       # Wayland support (primary)
       wayland
       wayland-protocols
@@ -70,6 +72,21 @@ let
       gpauth
       gpclient
       openconnect
+    ];
+
+    # Ensure PKG_CONFIG_PATH includes all necessary .pc files
+    PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" [
+      pkgs.openssl.dev
+      pkgs.glib.dev
+      pkgs.gtk3.dev
+      pkgs.harfbuzz.dev # Required by pango
+      pkgs.pango.dev
+      pkgs.atk.dev
+      pkgs.gdk-pixbuf.dev # Needed for pkgconfig, runtime comes from gtk3
+      pkgs.cairo.dev
+      pkgs.webkitgtk_4_1.dev
+      pkgs.librsvg.dev
+      pkgs.libsoup_3.dev
     ];
   };
 
@@ -137,14 +154,13 @@ craneLib.buildPackage (
         } \
         --prefix LD_LIBRARY_PATH : ${
           pkgs.lib.makeLibraryPath [
-            pkgs.gtk3
+            pkgs.gtk3 # Includes gdk-pixbuf transitively
             pkgs.webkitgtk_4_1
             pkgs.glib
             pkgs.glib-networking
             pkgs.gsettings-desktop-schemas
             pkgs.cairo
             pkgs.pango
-            pkgs.gdk-pixbuf
             pkgs.atk
             pkgs.libsoup_3
             pkgs.wayland
