@@ -1,6 +1,6 @@
 # GlobalProtect VPN GUI
 
-A graphical user interface for the GlobalProtect VPN client, built with Tauri and React.
+A graphical user interface for the GlobalProtect VPN client, built with Rust and Iced.
 
 This project is derived from and builds upon the excellent work of the [GlobalProtect-openconnect](https://github.com/yuezk/GlobalProtect-openconnect) project by yuezk. It provides a modern GUI wrapper around the `gpclient` binary for easier VPN connection management.
 
@@ -11,13 +11,16 @@ This project is derived from and builds upon the excellent work of the [GlobalPr
 - OpenSSL compatibility fixes for modern systems
 - Automatic cleanup of lock files on exit
 - Configuration persistence for VPN server and username
-- Native Linux application with minimal dependencies
+- Native Linux application with pure Rust implementation
+- Responsive UI with proper connection state handling
+- Error recovery and authentication failure handling
 
 ## Requirements
 
 - Linux system with NixOS or Nix package manager
 - Root/sudo access (required for VPN connections)
 - `gpclient` binary (provided by `globalprotect-openconnect`)
+- Wayland or X11 display server
 
 ## Installation
 
@@ -40,11 +43,11 @@ nix develop
 
 The development shell provides:
 
-- Rust toolchain (1.85.0) with rust-analyzer
-- Node.js 22 and npm
-- All Tauri dependencies (webkitgtk, gtk3, etc.)
+- Rust toolchain with rust-analyzer
+- cargo-edit for dependency management
+- All Iced dependencies (Wayland, X11, Vulkan)
 - gpclient and gpauth binaries
-- Helper commands: `build-gui`, `npm-install`, `cargo-test`
+- Helper commands: `build-gui`, `cargo-test`, `cargo-run`
 
 ## Usage
 
@@ -61,24 +64,16 @@ sudo ./result/bin/gp-gui
 1. Enter your VPN server (e.g., `vpn.example.com`)
 1. Enter your username
 1. Enter your password
-1. (Optional) Configure advanced options:
-   - CSD Wrapper path for HIP reporting
-   - Authentication group/gateway
-   - OpenSSL compatibility fixes
-1. Click "Authenticate & Connect"
-
-### Advanced Options
-
-- **CSD Wrapper**: Path to HIP report script (auto-detected or specify manually)
-- **Gateway/Auth Group**: Specify authentication group for multi-gateway setups
-- **Fix OpenSSL**: Enable compatibility mode for SSL issues
+1. Click "Authenticate" or press Enter
+1. Wait for connection to establish
+1. Click "Disconnect" when you want to disconnect
 
 ## Architecture
 
-- **Frontend**: React + TypeScript + Material-UI
-- **Backend**: Rust (Tauri framework)
+- **UI Framework**: Iced (pure Rust, native performance)
 - **VPN Client**: Wraps `gpclient` from `globalprotect-openconnect`
 - **Build System**: Nix flakes with crane for Rust builds
+- **State Management**: Async message-based architecture with proper error handling
 
 ## Configuration Files
 
@@ -101,16 +96,19 @@ sudo ./result/bin/gp-gui
 This error can occur if:
 
 1. Credentials are incorrect
-1. The wrong authentication group is specified
-1. CSD wrapper is required but not configured
+1. The VPN server is unreachable
+1. Network connectivity issues
+
+The UI will return to the authentication screen, allowing you to correct credentials and retry.
 
 ### Lock file not cleaned up
 
 The application automatically removes `/var/run/gpclient.lock` on:
 
 - Normal exit
+- Window close
+- Disconnect
 - Ctrl+C / SIGTERM
-- Process termination
 
 If the lock file persists, remove it manually:
 
@@ -122,7 +120,7 @@ sudo rm /var/run/gpclient.lock
 
 ### Updating Dependencies
 
-To update all package dependencies (Nix, Cargo, npm):
+To update all package dependencies (Nix, Cargo):
 
 ```bash
 ./scripts/update-deps.sh
@@ -133,13 +131,12 @@ Update specific package managers:
 ```bash
 ./scripts/update-deps.sh --nix     # Update Nix flake inputs only
 ./scripts/update-deps.sh --cargo   # Update Cargo dependencies only
-./scripts/update-deps.sh --npm     # Update npm dependencies only
+./scripts/update-deps.sh --upgrade # Upgrade to latest versions
 ```
 
 The script will:
 
-- Update all lock files (flake.lock, Cargo.lock, package-lock.json)
-- Automatically update the npm hash in the Nix build
+- Update all lock files (flake.lock, Cargo.lock)
 - Verify the build still works
 - Show a summary of changes
 
@@ -159,9 +156,8 @@ nix build .#gp-gui --fallback --option builders ""
 # Enter development shell
 nix develop
 
-# Run the GUI
-cd gui
-cargo tauri dev
+# Run with cargo (requires root)
+sudo cargo run --release
 ```
 
 ## License

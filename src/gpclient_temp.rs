@@ -90,12 +90,27 @@ fn find_csd_wrapper() -> Option<String> {
 /// Logs a warning if the file cannot be removed (except for NotFound errors,
 /// which are silently ignored since the goal is already achieved).
 fn cleanup_lock_file() {
-    if let Err(e) = std::fs::remove_file(LOCK_FILE) {
-        if e.kind() != std::io::ErrorKind::NotFound {
-            warn!("Failed to remove lock file: {}", e);
+    info!("Attempting to clean up lock file: {}", LOCK_FILE);
+
+    match std::fs::remove_file(LOCK_FILE) {
+        Ok(()) => {
+            info!("Successfully removed lock file: {}", LOCK_FILE);
         }
-    } else {
-        info!("Cleaned up lock file: {}", LOCK_FILE);
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            info!(
+                "Lock file does not exist (already cleaned up): {}",
+                LOCK_FILE
+            );
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+            error!(
+                "Permission denied removing lock file: {} - are you running as root?",
+                LOCK_FILE
+            );
+        }
+        Err(e) => {
+            warn!("Failed to remove lock file {}: {}", LOCK_FILE, e);
+        }
     }
 }
 
@@ -160,9 +175,29 @@ impl GpclientProcess {
     /// Lock file cleanup is attempted even if killing the process fails.
     pub fn disconnect(&mut self) -> Result<()> {
         if let Some(mut child) = self.child.take() {
-            info!("Killing gpclient process");
-            child.kill()?;
-            child.wait()?;
+            let pid = child.id();
+            info!("Killing gpclient process (PID: {})", pid);
+
+            // Try to kill the process
+            if let Err(e) = child.kill() {
+                warn!("Failed to kill gpclient process: {}", e);
+            } else {
+                info!("Sent SIGKILL to gpclient process");
+            }
+
+            // Don't wait() here - it blocks the async runtime
+            // The process will be reaped by the OS when it exits
+
+            // Extra cleanup: try to kill any orphaned gpclient processes
+            // This handles cases where gpclient might fork child processes
+            let _ = Command::new("pkill")
+                .arg("-9") // SIGKILL
+                .arg("gpclient")
+                .output();
+
+            info!("Sent SIGKILL to any remaining gpclient processes");
+        } else {
+            info!("No active gpclient process to disconnect");
         }
 
         // Always try to clean up lock file
@@ -416,7 +451,7 @@ pub async fn connect_gpclient(
                 .map_err(|e| format!("Failed to spawn sudo gpclient: {}", e))?;
 
             // Write sudo password first, then VPN password
-            if let Some(stdin) = child.stdin.as_mut() {
+            if let Some(mut stdin) = child.stdin.take() {
                 info!("Writing sudo password to stdin...");
                 writeln!(stdin, "{}", sudo_pass)
                     .map_err(|e| format!("Failed to write sudo password: {}", e))?;
@@ -427,6 +462,8 @@ pub async fn connect_gpclient(
                     .flush()
                     .map_err(|e| format!("Failed to flush stdin: {}", e))?;
                 info!("Both passwords written successfully");
+                drop(stdin); // Explicitly close stdin
+                info!("Stdin closed");
             }
 
             child
@@ -457,7 +494,7 @@ pub async fn connect_gpclient(
             .map_err(|e| format!("Failed to spawn gpclient: {}", e))?;
 
         // Write VPN password to stdin
-        if let Some(stdin) = child.stdin.as_mut() {
+        if let Some(mut stdin) = child.stdin.take() {
             info!("Writing VPN password to stdin...");
             writeln!(stdin, "{}", config.password)
                 .map_err(|e| format!("Failed to write password: {}", e))?;
@@ -465,6 +502,8 @@ pub async fn connect_gpclient(
                 .flush()
                 .map_err(|e| format!("Failed to flush stdin: {}", e))?;
             info!("Password written successfully");
+            drop(stdin); // Explicitly close stdin
+            info!("Stdin closed");
         }
 
         child
@@ -488,21 +527,49 @@ pub async fn connect_gpclient(
     if let Some(status) = process.check_status() {
         if !status.success() {
             error!("gpclient failed to start or authentication failed");
+
+            // Provide specific error message based on exit code
+            let error_msg = match status.code() {
+                Some(256) => {
+                    "Authentication failed: Invalid username or password.\n\
+                     Please check your credentials and try again."
+                }
+                Some(1) => {
+                    "Connection failed: Unable to reach VPN server.\n\
+                     Please check the gateway address and network connectivity."
+                }
+                _ => {
+                    "Connection failed. This usually means:\n\
+                     - Incorrect username or password\n\
+                     - Incorrect VPN gateway address\n\
+                     - Network connectivity issues"
+                }
+            };
+
+            return Err(format!("{}\n\nExit code: {:?}", error_msg, status.code()));
+        }
+    }
+
+    // Wait a bit longer for the VPN tunnel to establish
+    // gpclient takes time to negotiate the connection with the server
+    info!("Waiting for VPN tunnel to establish...");
+    drop(process);
+    sleep(Duration::from_secs(5)).await;
+
+    let mut process = state.process.lock().await;
+    // Final check - did it crash during connection setup?
+    if let Some(status) = process.check_status() {
+        if !status.success() {
+            error!("gpclient exited during connection setup");
             return Err(format!(
-                "Connection failed. This usually means:\n\
-                 - Incorrect username or password\n\
-                 - Incorrect sudo password\n\
-                 - Network connectivity issues\n\
-                 \n\
-                 The connection has been reset. Please check your credentials and try again.\n\
-                 Exit code: {:?}",
+                "Connection failed during setup.\n\nExit code: {:?}",
                 status.code()
             ));
         }
     }
 
-    info!("gpclient started successfully");
-    Ok("VPN connection initiated. Check the console for connection status.".to_string())
+    info!("gpclient connected successfully");
+    Ok("VPN connection established successfully".to_string())
 }
 
 /// Disconnect from the VPN.
@@ -519,23 +586,30 @@ pub async fn connect_gpclient(
 /// - `Err(String)` if not connected or disconnection failed
 #[tauri::command]
 pub async fn disconnect_gpclient(state: State<'_, Arc<GpclientState>>) -> Result<String, String> {
-    info!("Disconnecting gpclient");
+    info!("=== Disconnect request received ===");
 
     let mut process = state.process.lock().await;
 
     if !process.is_connected() {
+        info!("Process not marked as connected, checking status...");
         // Check if process exited on its own
-        if let Some(_status) = process.check_status() {
+        if let Some(status) = process.check_status() {
+            info!("Process already terminated with status: {:?}", status);
+            // Still cleanup lock file just in case
+            cleanup_lock_file();
             return Ok("Connection already terminated".to_string());
         }
+        warn!("Not connected - no active process");
         return Err("Not connected".to_string());
     }
 
-    process
-        .disconnect()
-        .map_err(|e| format!("Failed to disconnect: {}", e))?;
+    info!("Disconnecting active VPN connection...");
+    process.disconnect().map_err(|e| {
+        error!("Disconnect failed: {}", e);
+        format!("Failed to disconnect: {}", e)
+    })?;
 
-    info!("gpclient disconnected");
+    info!("=== Disconnect completed successfully ===");
     Ok("Disconnected successfully".to_string())
 }
 

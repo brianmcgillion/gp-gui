@@ -4,39 +4,19 @@
 }:
 
 let
-  # Include both Cargo sources and gui directory for frontend
+  # Include only Rust sources (no frontend)
   src = pkgs.lib.sourceFilesBySuffices ./../../. [
     ".rs"
     ".toml"
-    ".lock" # Rust files
-    ".ts"
-    ".tsx"
-    ".js"
-    ".jsx"
-    ".json"
-    ".html"
-    ".css"
-    ".svg" # Frontend files
-    ".png"
-    ".ico"
-    ".icns" # Icon files for Tauri
+    ".lock"
   ];
 
-  # Build npm dependencies separately (offline, reproducible)
-  npmDeps = pkgs.fetchNpmDeps {
-    src = ./../../gui;
-    hash = "sha256-/hyqHh9plE9k2bt/0/v//Eu9mxB8ejxIDJ/Onf9EmWM=";
-  };
-
-  # Common arguments for crane (Rust only)
+  # Common arguments for crane
   commonArgs = {
     inherit src;
     strictDeps = true;
     pname = "gp-gui";
     version = "1.0.0";
-
-    # Cargo.toml is in gui/src-tauri subdirectory
-    cargoRoot = "gui/src-tauri";
 
     nativeBuildInputs = with pkgs; [
       pkg-config
@@ -44,103 +24,31 @@ let
     ];
 
     buildInputs = with pkgs; [
-      openssl
-      # GTK3 with WebKitGTK (required by Rust tauri bindings)
-      # Note: gtk3 includes gdk-pixbuf transitively
-      gtk3
-      gtk3.dev
-      webkitgtk_4_1
-      libsoup_3
-      glib
-      glib-networking
-      gsettings-desktop-schemas
-      cairo
-      pango
-      atk
-      dbus
-      # Wayland support (primary)
+      # Iced dependencies
       wayland
       wayland-protocols
+      libxkbcommon
+      vulkan-loader
       # X11 libraries (for compatibility)
       xorg.libX11
-      xorg.libXcomposite
-      xorg.libXdamage
-      xorg.libXext
-      xorg.libXfixes
+      xorg.libXcursor
+      xorg.libXi
       xorg.libXrandr
-      # Runtime dependencies (ensure they're built before this package)
+      # Runtime dependencies
       gpauth
       gpclient
       openconnect
     ];
-
-    # Ensure PKG_CONFIG_PATH includes all necessary .pc files
-    PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" [
-      pkgs.openssl.dev
-      pkgs.glib.dev
-      pkgs.gtk3.dev
-      pkgs.harfbuzz.dev # Required by pango
-      pkgs.pango.dev
-      pkgs.atk.dev
-      pkgs.gdk-pixbuf.dev # Needed for pkgconfig, runtime comes from gtk3
-      pkgs.cairo.dev
-      pkgs.webkitgtk_4_1.dev
-      pkgs.librsvg.dev
-      pkgs.libsoup_3.dev
-    ];
   };
 
   # Build dependencies only (cached separately)
-  # Build Rust dependencies first
-  # Create minimal dist folder for tauri-build during deps phase
-  cargoArtifacts = craneLib.buildDepsOnly (
-    commonArgs
-    // {
-      preBuild = ''
-              # Create minimal dist for tauri-build during deps-only phase
-              mkdir -p gui/dist/assets
-              cat > gui/dist/index.html << 'EOF'
-        <!doctype html>
-        <html><head><title>Placeholder</title></head><body><div id="root"></div><script type="module" src="/assets/main.js"></script></body></html>
-        EOF
-              echo "// placeholder" > gui/dist/assets/main.js
-      '';
-    }
-  );
+  cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
 in
 craneLib.buildPackage (
   commonArgs
   // {
     inherit cargoArtifacts;
-
-    # Force rebuild of gp-gui binary to ensure tauri-build re-runs with real assets
-    # Without this, Cargo reuses the cached build from deps phase with placeholder assets
-    CARGO_INCREMENTAL = "0";
-    CARGO_BUILD_INCREMENTAL = "false";
-
-    # Add npm-specific build inputs for final build only
-    nativeBuildInputs =
-      commonArgs.nativeBuildInputs
-      ++ (with pkgs; [
-        nodejs
-        npmHooks.npmConfigHook
-      ]);
-
-    # Provide offline npm cache for final build
-    inherit npmDeps;
-    npmRoot = "gui";
-
-    # Build frontend before Cargo runs (we're in /build/source)
-    preBuild = ''
-      cd gui
-      npm run build
-      cd ..
-
-      # Touch build.rs to force Cargo to re-run tauri-build with the real assets
-      # This ensures the final binary embeds the actual frontend, not placeholders from deps phase
-      touch gui/src-tauri/build.rs
-    '';
 
     postInstall = ''
       # Wrap the GUI to ensure it can find gpauth, gpclient, and openconnect
@@ -154,44 +62,29 @@ craneLib.buildPackage (
         } \
         --prefix LD_LIBRARY_PATH : ${
           pkgs.lib.makeLibraryPath [
-            pkgs.gtk3 # Includes gdk-pixbuf transitively
-            pkgs.webkitgtk_4_1
-            pkgs.glib
-            pkgs.glib-networking
-            pkgs.gsettings-desktop-schemas
-            pkgs.cairo
-            pkgs.pango
-            pkgs.atk
-            pkgs.libsoup_3
             pkgs.wayland
+            pkgs.libxkbcommon
+            pkgs.vulkan-loader
             pkgs.xorg.libX11
-            pkgs.xorg.libXcomposite
-            pkgs.xorg.libXdamage
-            pkgs.xorg.libXext
-            pkgs.xorg.libXfixes
+            pkgs.xorg.libXcursor
+            pkgs.xorg.libXi
             pkgs.xorg.libXrandr
           ]
-        } \
-        --prefix XDG_DATA_DIRS : "${pkgs.gsettings-desktop-schemas}/share:${pkgs.gtk3}/share" \
-        --set WEBKIT_DISABLE_DMABUF_RENDERER "1"
+        }
     '';
 
-    # Expose dependencies for inspection and ensure they're built
+    # Expose dependencies for inspection
     passthru = {
-      # Runtime dependencies required for VPN functionality
       runtimeDeps = [
         pkgs.gpauth
         pkgs.gpclient
         pkgs.openconnect
       ];
-      # Frontend dependencies
-      inherit npmDeps;
-      # Rust dependencies artifacts
       inherit cargoArtifacts;
     };
 
     meta = with pkgs.lib; {
-      description = "GUI client for GlobalProtect VPN";
+      description = "GUI client for GlobalProtect VPN (Iced UI)";
       homepage = "https://github.com/brianmcgillion/gp-gui";
       license = licenses.gpl3Only;
       platforms = platforms.linux;

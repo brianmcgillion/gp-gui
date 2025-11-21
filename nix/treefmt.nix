@@ -33,24 +33,6 @@
           # Format Rust code
           rustfmt.enable = true;
 
-          # JavaScript/TypeScript
-          # Prettier for JS, TS, TSX, JSON, HTML, CSS, Markdown, YAML
-          prettier.enable = true;
-          prettier.includes = [
-            "*.js"
-            "*.ts"
-            "*.tsx"
-            "*.jsx"
-            "*.json"
-            "*.html"
-            "*.css"
-            "*.md"
-            "*.yml"
-            "*.yaml"
-            # Format all .github files (workflows, templates, etc.)
-            ".github/**/*"
-          ];
-
           # Bash
           # Lint shell scripts
           shellcheck.enable = true;
@@ -76,9 +58,6 @@
             "target/**"
             "result"
             "result-*"
-            "node_modules/**"
-            "dist/**"
-            ".next/**"
 
             # Binary and media files
             "*.png"
@@ -110,10 +89,6 @@
             "*.pfx"
             "*.p12"
 
-            # Generated files
-            "gui/src-tauri/gen/**"
-            "gui/src-tauri/target/**"
-
             # Patches
             "*.patch"
             "*.diff"
@@ -131,15 +106,6 @@
           ];
 
           formatter = {
-            prettier = {
-              options = [
-                "--tab-width"
-                "2"
-                "--print-width"
-                "100"
-              ];
-            };
-
             shfmt = {
               includes = [ "*.sh" ];
               options = [
