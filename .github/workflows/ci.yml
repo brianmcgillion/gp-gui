@@ -16,8 +16,13 @@ permissions:
 
 jobs:
   nix-build:
-    name: Build with Nix
+    name: Build with Nix (${{ matrix.system }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        system:
+          - x86_64-linux
+          - aarch64-linux
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
@@ -34,15 +39,21 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
+      - name: Set up QEMU for cross-compilation
+        if: matrix.system == 'aarch64-linux'
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+        with:
+          platforms: arm64
+
       - name: Check Nix flake
-        run: nix flake check --all-systems --show-trace
+        run: nix flake check --show-trace --system ${{ matrix.system }}
 
       - name: Build gp-gui
-        run: nix build .#gp-gui --print-build-logs --out-link result-gp-gui
+        run: nix build .#packages.${{ matrix.system }}.gp-gui --print-build-logs --out-link result-gp-gui
 
       - name: Check runtime dependencies
         run: |
-          nix build .#checks.x86_64-linux.gp-gui-deps --print-build-logs
+          nix build .#checks.${{ matrix.system }}.gp-gui-deps --print-build-logs
 
       - name: Copy binary for upload
         run: |
@@ -53,7 +64,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: gp-gui-${{ github.sha }}
+          name: gp-gui-${{ matrix.system }}-${{ github.sha }}
           path: artifacts/gp-gui
           retention-days: 7
 

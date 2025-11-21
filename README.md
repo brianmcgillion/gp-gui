@@ -24,15 +24,63 @@ This project is derived from and builds upon the excellent work of the [GlobalPr
 
 ## Installation
 
-### With Nix Flakes
+### On NixOS (Recommended)
+
+Add to your flake-based configuration:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    gp-gui.url = "github:tiiuae/gp-gui";
+  };
+
+  outputs = { self, nixpkgs, gp-gui, ... }: {
+    nixosConfigurations.your-hostname = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        gp-gui.nixosModules.default
+        {
+          programs.gp-gui.enable = true;
+        }
+      ];
+    };
+  };
+}
+```
+
+This automatically:
+
+- Installs gp-gui and gpclient
+- Creates setuid wrappers so users don't need sudo
+- Makes `gp-gui` and `gpclient` available in PATH
+
+Users can then simply run:
+
+```bash
+gp-gui  # No sudo needed!
+```
+
+### With Nix Flakes (Non-NixOS)
 
 ```bash
 # Build the application
 nix build .#gp-gui
 
-# Run directly
+# Run with sudo (required for network configuration)
 sudo ./result/bin/gp-gui
 ```
+
+For passwordless access, build the setuid wrapper:
+
+```bash
+nix build .#gp-gui-wrapper
+sudo cp result/bin/gp-gui-wrapper /usr/local/bin/gp-gui
+sudo chown root:root /usr/local/bin/gp-gui
+sudo chmod 4755 /usr/local/bin/gp-gui
+```
+
+**Security Note:** The setuid wrapper elevates privileges to root to allow `gpclient` to create network interfaces (TUN devices). The wrapper sanitizes the environment by allowlisting only safe variables (DISPLAY, WAYLAND_DISPLAY, XDG_RUNTIME_DIR, HOME, USER, LOGNAME) and enforces a hardcoded executable path to prevent privilege escalation attacks.
 
 ### Development
 
@@ -53,11 +101,23 @@ The development shell provides:
 
 ### Starting the Application
 
-The application **must** be run as root to modify network interfaces:
+#### On NixOS
+
+If you enabled the module (`programs.gp-gui.enable = true`):
+
+```bash
+gp-gui  # Works without sudo!
+```
+
+#### On other systems
+
+The application needs root privileges to modify network interfaces:
 
 ```bash
 sudo ./result/bin/gp-gui
 ```
+
+Or use the setuid wrapper (see Installation section above).
 
 ### Connecting to VPN
 

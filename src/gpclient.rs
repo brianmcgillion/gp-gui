@@ -9,7 +9,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tokio::time::{Duration, sleep};
 
-const GPCLIENT_BINARY: &str = "gpclient";
+const GPCLIENT_BINARY: &str = "/run/wrappers/bin/gpclient";
 const LOCK_FILE: &str = "/var/run/gpclient.lock";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -273,10 +273,6 @@ pub async fn disconnect_vpn(state: VpnState) -> Result<String> {
     process.disconnect().await?;
 
     Ok("Disconnected successfully".to_string())
-}
-
-pub fn check_running_as_root() -> bool {
-    nix::unistd::Uid::effective().is_root()
 }
 
 /// Cleanup function to call on application exit

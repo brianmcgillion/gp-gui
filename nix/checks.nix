@@ -87,6 +87,51 @@
             touch $out
           '';
 
+        # Verify the setuid wrapper package structure
+        gp-gui-wrapper-check =
+          let
+            wrapper = self'.packages.gp-gui-wrapper;
+          in
+          pkgs.runCommand "verify-gp-gui-wrapper" { buildInputs = [ pkgs.binutils ]; } ''
+            # Verify wrapper has expected structure
+            if [ ! -d "${wrapper}/bin" ]; then
+              echo "ERROR: Wrapper does not have bin directory"
+              exit 1
+            fi
+
+            if [ ! -f "${wrapper}/bin/gp-gui-wrapper" ]; then
+              echo "ERROR: Wrapper does not contain gp-gui-wrapper binary"
+              exit 1
+            fi
+
+            echo "✓ Wrapper package has correct structure"
+
+            # Verify wrapper is executable
+            if [ ! -x "${wrapper}/bin/gp-gui-wrapper" ]; then
+              echo "ERROR: Wrapper binary is not executable"
+              exit 1
+            fi
+
+            echo "✓ Wrapper binary is executable"
+
+            # Verify wrapper references the actual gp-gui package
+            if ! strings "${wrapper}/bin/gp-gui-wrapper" | grep -q "${self'.packages.gp-gui}"; then
+              echo "ERROR: Wrapper does not reference gp-gui package"
+              exit 1
+            fi
+
+            echo "✓ Wrapper references gp-gui package correctly"
+            echo "✓ Setuid wrapper validation complete"
+            touch $out
+          '';
+
+        # NixOS VM test for the gp-gui module
+        # Verifies that the module correctly sets up the setuid wrapper
+        nixos-module-test = import ../nix/tests/nixos-module.nix {
+          inherit pkgs;
+          inherit (inputs) self;
+        };
+
         # Rust tests disabled - requires network in nix build
         # Run tests with: nix develop -c cargo test
       };
