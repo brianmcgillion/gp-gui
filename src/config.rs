@@ -150,35 +150,3 @@ pub fn save_config(config: &UserConfig) -> Result<()> {
     info!("Saved config to {:?}", path);
     Ok(())
 }
-
-/// Load user configuration (Tauri command).
-///
-/// This is a Tauri command that wraps `load_config()` for frontend access.
-///
-/// # Returns
-///
-/// `Ok(Some(UserConfig))` if config exists, `Ok(None)` if it doesn't.
-/// Never returns an error.
-#[allow(dead_code)]
-pub fn load_user_config() -> Result<Option<UserConfig>, String> {
-    Ok(load_config())
-}
-
-/// Save user configuration (Tauri command).
-///
-/// This is a Tauri command that saves VPN server and username preferences.
-///
-/// # Arguments
-///
-/// * `vpn_server` - The VPN gateway address to save
-/// * `username` - The username to save
-///
-/// # Returns
-///
-/// - `Ok(())` if saved successfully
-/// - `Err(String)` with error message if saving failed
-#[allow(dead_code)]
-pub fn save_user_config(vpn_server: String, username: String) -> Result<(), String> {
-    let config = UserConfig::new(vpn_server, username);
-    save_config(&config).map_err(|e| e.to_string())
-}
