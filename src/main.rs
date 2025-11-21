@@ -10,13 +10,7 @@ mod gpclient;
 fn main() -> iced::Result {
     env_logger::init();
 
-    if !gpclient::check_running_as_root() {
-        eprintln!("Error: This application must be run as root");
-        eprintln!("Run with: sudo ./gp-gui");
-        std::process::exit(1);
-    }
-
-    info!("Starting GlobalProtect VPN GUI (Iced POC)");
+    info!("Starting GlobalProtect VPN GUI");
 
     // Setup signal handlers for cleanup on SIGINT/SIGTERM
     setup_signal_handlers();

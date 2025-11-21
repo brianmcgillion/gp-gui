@@ -41,7 +41,15 @@
         "aarch64-linux"
       ];
 
-      flake = { };
+      flake =
+        let
+          gpGuiModule = import ./nix/nixos-module.nix;
+        in
+        {
+          # Export the NixOS module
+          nixosModules.default = gpGuiModule;
+          nixosModules.gp-gui = gpGuiModule;
+        };
 
       perSystem =
         {
@@ -64,7 +72,7 @@
               };
             in
             {
-              inherit (packages) gp-gui;
+              inherit (packages) gp-gui gp-gui-wrapper gpclient-wrapper;
               default = packages.gp-gui;
             };
         };
