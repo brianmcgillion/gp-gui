@@ -6,7 +6,21 @@
 # - Cargo dependencies (Cargo.lock)
 # - npm dependencies (package-lock.json)
 #
-# Usage: ./scripts/update-deps.sh [--all|--nix|--cargo|--npm]
+# Usage: ./scripts/update-deps.sh [OPTIONS]
+#
+# Options:
+#   --all       Update all dependencies (default)
+#   --nix       Update only Nix flake inputs
+#   --cargo     Update only Cargo dependencies
+#   --npm       Update only npm dependencies
+#   --upgrade   Upgrade source dependencies (Cargo.toml, package.json) to latest versions
+#   --help      Show this help message
+#
+# Examples:
+#   ./scripts/update-deps.sh              # Update all lock files
+#   ./scripts/update-deps.sh --upgrade    # Upgrade source dependencies + update lock files
+#   ./scripts/update-deps.sh --cargo      # Update only Cargo.lock
+#   ./scripts/update-deps.sh --cargo --upgrade  # Upgrade Cargo.toml versions + update lock
 
 set -euo pipefail
 
@@ -55,11 +69,17 @@ update_nix() {
 
   # Show what changed
   info "Flake input changes:"
-  git diff --no-pager flake.lock | grep -E "^\+.*\"(narHash|rev)\"" | head -20 || true
+  git --no-pager diff flake.lock | grep -E "^\+.*\"(narHash|rev)\"" | head -20 || true
 }
 
 update_cargo() {
-  info "Updating Cargo dependencies..."
+  local upgrade_mode=${1:-false}
+
+  if [[ $upgrade_mode == true ]]; then
+    info "Upgrading Cargo dependencies (will update Cargo.toml versions)..."
+  else
+    info "Updating Cargo dependencies (lock files only)..."
+  fi
 
   if ! command -v cargo &> /dev/null; then
     warn "Cargo not found in PATH, trying via nix develop..."
@@ -72,23 +92,43 @@ update_cargo() {
     CARGO_CMD="cargo"
   fi
 
+  # If upgrade mode, use cargo-upgrade if available
+  if [[ $upgrade_mode == true ]]; then
+    if $CARGO_CMD upgrade --help &> /dev/null; then
+      warn "⚠️  UPGRADE MODE: This will modify Cargo.toml files!"
+
+      # cargo-upgrade doesn't support --workspace, run in each package directory
+      info "Running cargo upgrade in gui/src-tauri..."
+      (cd gui/src-tauri && $CARGO_CMD upgrade) || warn "gui/src-tauri cargo upgrade failed"
+
+      success "Cargo.toml files upgraded"
+    else
+      warn "cargo-upgrade not available"
+      warn "To enable version upgrades, install cargo-edit:"
+      warn "  cargo install cargo-edit"
+      warn "Falling back to lock file updates only"
+    fi
+  fi
+
   # Update workspace dependencies
   info "Updating workspace Cargo.lock..."
   $CARGO_CMD update --workspace
-
-  # Update Tauri-specific dependencies
-  info "Updating gui/src-tauri dependencies..."
-  (cd gui/src-tauri && $CARGO_CMD update)
 
   success "Cargo dependencies updated"
 
   # Show major version changes
   info "Checking for major version changes..."
-  git diff --no-pager Cargo.lock gui/src-tauri/Cargo.lock | grep -E "^[\+\-]version = " | head -20 || true
+  git --no-pager diff Cargo.lock 2> /dev/null | grep -E "^[\+\-]version = " | head -20 || true
 }
 
 update_npm() {
-  info "Updating npm dependencies..."
+  local upgrade_mode=${1:-false}
+
+  if [[ $upgrade_mode == true ]]; then
+    info "Upgrading npm dependencies (will update package.json versions)..."
+  else
+    info "Updating npm dependencies (lock file only)..."
+  fi
 
   if [[ ! -d "gui" ]]; then
     error "gui directory not found"
@@ -108,13 +148,23 @@ update_npm() {
 
   cd gui
 
-  # Update npm dependencies
-  info "Updating package-lock.json..."
-  $NPM_CMD update
+  if [[ $upgrade_mode == true ]]; then
+    warn "⚠️  UPGRADE MODE: This will modify package.json!"
+    info "Running npm upgrade (upgrades package.json to latest within semver ranges)..."
+    $NPM_CMD upgrade
 
-  # Check for outdated packages
-  info "Checking for outdated packages..."
-  $NPM_CMD outdated || true
+    # Show what packages have newer versions available
+    info "Checking for packages with newer major versions available..."
+    $NPM_CMD outdated || true
+  else
+    # Update npm dependencies (lock file only)
+    info "Updating package-lock.json..."
+    $NPM_CMD update
+
+    # Check for outdated packages
+    info "Checking for outdated packages..."
+    $NPM_CMD outdated || true
+  fi
 
   cd ..
 
@@ -244,6 +294,7 @@ main() {
   local update_nix_only=false
   local update_cargo_only=false
   local update_npm_only=false
+  local upgrade_mode=false
 
   # Parse arguments
   for arg in "$@"; do
@@ -263,15 +314,33 @@ main() {
       update_all=false
       update_npm_only=true
       ;;
+    --upgrade)
+      upgrade_mode=true
+      ;;
     --help | -h)
-      echo "Usage: $0 [--all|--nix|--cargo|--npm]"
+      echo "Usage: $0 [OPTIONS]"
+      echo ""
+      echo "Update gp-gui dependencies"
       echo ""
       echo "Options:"
-      echo "  --all     Update all dependencies (default)"
-      echo "  --nix     Update only Nix flake inputs"
-      echo "  --cargo   Update only Cargo dependencies"
-      echo "  --npm     Update only npm dependencies"
-      echo "  --help    Show this help message"
+      echo "  --all       Update all dependencies (default)"
+      echo "  --nix       Update only Nix flake inputs"
+      echo "  --cargo     Update only Cargo dependencies"
+      echo "  --npm       Update only npm dependencies"
+      echo "  --upgrade   Upgrade source dependencies (Cargo.toml, package.json)"
+      echo "              to latest compatible versions (potentially breaking)"
+      echo "  --help      Show this help message"
+      echo ""
+      echo "Examples:"
+      echo "  $0                    # Update all lock files"
+      echo "  $0 --upgrade          # Upgrade source dependencies + update locks"
+      echo "  $0 --cargo            # Update only Cargo.lock"
+      echo "  $0 --cargo --upgrade  # Upgrade Cargo.toml + update Cargo.lock"
+      echo ""
+      echo "Notes:"
+      echo "  - Without --upgrade: Only updates lock files (safe, no breaking changes)"
+      echo "  - With --upgrade: Updates version constraints in source files"
+      echo "    (may introduce breaking changes, requires testing)"
       exit 0
       ;;
     *)
@@ -288,17 +357,25 @@ main() {
   echo "╚════════════════════════════════════════════════════╝"
   echo ""
 
+  if [[ $upgrade_mode == true ]]; then
+    warn "⚠️  UPGRADE MODE ENABLED"
+    warn "This will modify source files (Cargo.toml, package.json)"
+    warn "and may introduce breaking changes!"
+    warn "Please review all changes and test thoroughly before committing."
+    echo ""
+  fi
+
   # Execute updates based on flags
   if [[ $update_all == true ]]; then
     update_nix || warn "Nix update failed"
     echo ""
-    update_cargo || warn "Cargo update failed"
+    update_cargo "$upgrade_mode" || warn "Cargo update failed"
     echo ""
-    update_npm || warn "npm update failed"
+    update_npm "$upgrade_mode" || warn "npm update failed"
   else
     [[ $update_nix_only == true ]] && update_nix
-    [[ $update_cargo_only == true ]] && update_cargo
-    [[ $update_npm_only == true ]] && update_npm
+    [[ $update_cargo_only == true ]] && update_cargo "$upgrade_mode"
+    [[ $update_npm_only == true ]] && update_npm "$upgrade_mode"
   fi
 
   echo ""
@@ -306,6 +383,12 @@ main() {
 
   echo ""
   show_summary
+
+  if [[ $upgrade_mode == true ]]; then
+    echo ""
+    warn "⚠️  REMINDER: UPGRADE MODE was used"
+    warn "Please carefully review ALL changes and run full test suite!"
+  fi
 }
 
 # Run main function

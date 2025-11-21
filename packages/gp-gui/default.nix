@@ -25,7 +25,7 @@ let
   # Build npm dependencies separately (offline, reproducible)
   npmDeps = pkgs.fetchNpmDeps {
     src = ./../../gui;
-    hash = "sha256-IBs9q7q+Jh40wDephv9p1mUGKlDLg+SZARtRBqaCnDs=";
+    hash = "sha256-/hyqHh9plE9k2bt/0/v//Eu9mxB8ejxIDJ/Onf9EmWM=";
   };
 
   # Common arguments for crane (Rust only)

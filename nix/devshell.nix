@@ -31,6 +31,7 @@
             # Rust development tools
             rustToolchain
             pkgs.rust-analyzer
+            pkgs.cargo-edit # Provides cargo-upgrade for version management
 
             # Build essentials
             pkgs.pkg-config
