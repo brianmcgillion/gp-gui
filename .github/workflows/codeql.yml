@@ -56,7 +56,6 @@ jobs:
         uses: github/codeql-action/analyze@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
         with:
           category: "/language:rust"
-          upload: false
         continue-on-error: true
 
   analyze-javascript:
@@ -99,5 +98,4 @@ jobs:
         uses: github/codeql-action/analyze@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
         with:
           category: "/language:javascript-typescript"
-          upload: false
         continue-on-error: true
