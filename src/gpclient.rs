@@ -208,7 +208,9 @@ pub async fn connect_vpn(state: VpnState, config: VpnConfig) -> Result<String> {
     // Save config without holding the lock
     let user_config =
         crate::config::UserConfig::new(config.gateway.clone(), config.username.clone());
-    let _ = crate::config::save_config(&user_config);
+    if let Err(e) = crate::config::save_config(&user_config) {
+        warn!("Failed to save VPN config: {}", e);
+    }
 
     // Wait for connection to establish or fail
     // Poll for up to 60 seconds (allow time for slow networks)
@@ -225,10 +227,10 @@ pub async fn connect_vpn(state: VpnState, config: VpnConfig) -> Result<String> {
             drop(process);
 
             // Map gpclient exit codes to user-friendly messages
+            // gpclient only returns 0 (success) or 1 (failure)
             let error_msg = match status.code() {
                 Some(1) => "Connection failed: Unable to reach VPN server or authentication failed"
                     .to_string(),
-                Some(2) => "Connection failed: Invalid configuration".to_string(),
                 Some(code) => format!("Connection failed with exit code: {}", code),
                 None => "Connection failed: Process terminated by signal".to_string(),
             };

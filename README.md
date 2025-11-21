@@ -64,7 +64,7 @@ sudo ./result/bin/gp-gui
 1. Enter your VPN server (e.g., `vpn.example.com`)
 1. Enter your username
 1. Enter your password
-1. Click "Authenticate" or press Enter
+1. Click "Authenticate & Connect" or press Enter
 1. Wait for connection to establish
 1. Click "Disconnect" when you want to disconnect
 
