@@ -38,17 +38,23 @@ jobs:
         run: nix flake check --all-systems --show-trace
 
       - name: Build gp-gui
-        run: nix build .#gp-gui --print-build-logs
+        run: nix build .#gp-gui --print-build-logs --out-link result-gp-gui
 
       - name: Check runtime dependencies
         run: |
           nix build .#checks.x86_64-linux.gp-gui-deps --print-build-logs
 
+      - name: Copy binary for upload
+        run: |
+          mkdir -p artifacts
+          cp -L result-gp-gui/bin/gp-gui artifacts/gp-gui
+          chmod +x artifacts/gp-gui
+
       - name: Upload build artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: gp-gui-${{ github.sha }}
-          path: result/bin/gp-gui
+          path: artifacts/gp-gui
           retention-days: 7
 
   nix-checks:
