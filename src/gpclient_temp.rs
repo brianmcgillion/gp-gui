@@ -529,14 +529,11 @@ pub async fn connect_gpclient(
             error!("gpclient failed to start or authentication failed");
 
             // Provide specific error message based on exit code
+            // Note: On Unix, exit codes are 0-255, so we only match realistic values
             let error_msg = match status.code() {
-                Some(256) => {
-                    "Authentication failed: Invalid username or password.\n\
-                     Please check your credentials and try again."
-                }
                 Some(1) => {
-                    "Connection failed: Unable to reach VPN server.\n\
-                     Please check the gateway address and network connectivity."
+                    "Connection failed: Unable to reach VPN server or authentication failed.\n\
+                     Please check the gateway address, credentials, and network connectivity."
                 }
                 _ => {
                     "Connection failed. This usually means:\n\
