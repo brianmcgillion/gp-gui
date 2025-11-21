@@ -123,12 +123,15 @@ pub fn create_vpn_state() -> VpnState {
 pub async fn connect_vpn(state: VpnState, config: VpnConfig) -> Result<String> {
     info!("Starting VPN connection to {}", config.gateway);
 
-    let mut process = state.lock().await;
+    // Check if already connected and disconnect if needed
+    {
+        let mut process = state.lock().await;
+        if process.is_connected() {
+            process.disconnect().await?;
+        }
+    } // Drop lock here
 
-    if process.is_connected() {
-        process.disconnect().await?;
-    }
-
+    // Build command outside the lock
     let mut cmd = Command::new(GPCLIENT_BINARY);
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::inherit())
@@ -157,8 +160,10 @@ pub async fn connect_vpn(state: VpnState, config: VpnConfig) -> Result<String> {
         .arg("--passwd-on-stdin")
         .arg(&config.gateway);
 
+    // Spawn child outside the lock
     let mut child = cmd.spawn().context("Failed to spawn gpclient")?;
 
+    // Write password outside the lock
     if let Some(mut stdin) = child.stdin.take() {
         stdin
             .write_all(config.password.as_bytes())
@@ -170,13 +175,16 @@ pub async fn connect_vpn(state: VpnState, config: VpnConfig) -> Result<String> {
         info!("Stdin closed");
     }
 
-    process.child = Some(child);
+    // Only acquire lock to store the child process
+    {
+        let mut process = state.lock().await;
+        process.child = Some(child);
+    } // Drop lock immediately
 
+    // Save config without holding the lock
     let user_config =
         crate::config::UserConfig::new(config.gateway.clone(), config.username.clone());
     let _ = crate::config::save_config(&user_config);
-
-    drop(process);
 
     // Wait for connection to establish or fail
     // Poll for up to 60 seconds (allow time for slow networks)
@@ -188,12 +196,17 @@ pub async fn connect_vpn(state: VpnState, config: VpnConfig) -> Result<String> {
         if let Some(ref mut child) = process.child
             && let Ok(Some(status)) = child.try_wait()
         {
+            // Clear the child process from state before dropping the lock
+            process.child = None;
             drop(process);
 
+            // Map gpclient exit codes to user-friendly messages
             let error_msg = match status.code() {
-                Some(256) => "Authentication failed: Invalid username or password".to_string(),
-                Some(1) => "Connection failed: Unable to reach VPN server".to_string(),
-                _ => format!("Connection failed with exit code: {:?}", status.code()),
+                Some(1) => "Connection failed: Unable to reach VPN server or authentication failed"
+                    .to_string(),
+                Some(2) => "Connection failed: Invalid configuration".to_string(),
+                Some(code) => format!("Connection failed with exit code: {}", code),
+                None => "Connection failed: Process terminated by signal".to_string(),
             };
 
             cleanup_lock_file();
