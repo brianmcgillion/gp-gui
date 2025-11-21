@@ -32,9 +32,43 @@ impl Default for VpnConfig {
             authgroup: None,
             as_gateway: true,
             fix_openssl: true,
-            csd_wrapper: Some("/nix/store/x5kmyljwqdyr2jjhnk76m5py33ynjgbd-openconnect-9.12-unstable-2025-01-14/libexec/openconnect/hipreport.sh".to_string()),
+            csd_wrapper: None,
         }
     }
+}
+
+/// Dynamically find the CSD wrapper (hipreport.sh) by locating openconnect
+fn find_csd_wrapper() -> Option<String> {
+    // Try to find openconnect binary first
+    let openconnect_path = std::process::Command::new("which")
+        .arg("openconnect")
+        .output()
+        .ok()?
+        .stdout;
+
+    if openconnect_path.is_empty() {
+        return None;
+    }
+
+    let path_str = String::from_utf8_lossy(&openconnect_path)
+        .trim()
+        .to_string();
+    // e.g., /nix/store/xxx-openconnect-9.12/bin/openconnect
+    // We need /nix/store/xxx-openconnect-9.12/libexec/openconnect/hipreport.sh
+
+    if let Some(bin_pos) = path_str.rfind("/bin/openconnect") {
+        let base = &path_str[..bin_pos];
+        let hipreport = format!("{}/libexec/openconnect/hipreport.sh", base);
+
+        // Verify the file exists
+        if std::path::Path::new(&hipreport).exists() {
+            info!("Found CSD wrapper at: {}", hipreport);
+            return Some(hipreport);
+        }
+    }
+
+    warn!("Could not find hipreport.sh CSD wrapper");
+    None
 }
 
 pub struct GpclientProcess {
@@ -110,10 +144,12 @@ pub async fn connect_vpn(state: VpnState, config: VpnConfig) -> Result<String> {
         cmd.arg("--as-gateway");
     }
 
-    if let Some(ref csd_wrapper) = config.csd_wrapper
-        && !csd_wrapper.is_empty()
+    // Use config csd_wrapper if provided, otherwise try to find it dynamically
+    let csd_wrapper = config.csd_wrapper.clone().or_else(find_csd_wrapper);
+    if let Some(ref wrapper) = csd_wrapper
+        && !wrapper.is_empty()
     {
-        cmd.arg("--csd-wrapper").arg(csd_wrapper);
+        cmd.arg("--csd-wrapper").arg(wrapper);
     }
 
     cmd.arg("--user")
