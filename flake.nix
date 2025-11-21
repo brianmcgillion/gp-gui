@@ -33,6 +33,7 @@
         ./nix/treefmt.nix
         ./nix/checks.nix
         ./nix/devshell.nix
+        ./nix/overlay.nix
       ];
 
       systems = [

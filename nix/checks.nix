@@ -54,6 +54,39 @@
               touch $out
             '';
 
+        # Verify the overlay is valid and exports gp-gui correctly
+        overlay-check =
+          let
+            # Apply the overlay to a test nixpkgs instance
+            testPkgs = pkgs.extend inputs.self.overlays.default;
+          in
+          pkgs.runCommand "verify-overlay" { } ''
+            # Verify the overlay exports gp-gui
+            ${
+              if testPkgs ? gp-gui then
+                ''echo "✓ Overlay exports gp-gui attribute"''
+              else
+                ''
+                  echo "ERROR: Overlay does not export gp-gui attribute"
+                  exit 1
+                ''
+            }
+
+            # Verify gp-gui derivation is valid
+            ${
+              if testPkgs.gp-gui ? outPath then
+                ''echo "✓ gp-gui derivation is valid"''
+              else
+                ''
+                  echo "ERROR: gp-gui derivation is invalid"
+                  exit 1
+                ''
+            }
+
+            echo "✓ Overlay validation complete"
+            touch $out
+          '';
+
         # Rust tests disabled - requires network in nix build
         # Run tests with: nix develop -c cargo test
       };
