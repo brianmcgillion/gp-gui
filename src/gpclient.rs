@@ -106,6 +106,30 @@ impl GpclientProcess {
     }
 }
 
+impl Drop for GpclientProcess {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            info!("Drop: Cleaning up gpclient process");
+
+            // Attempt synchronous kill
+            if let Err(e) = child.start_kill() {
+                warn!("Drop: Failed to kill gpclient process: {}", e);
+            } else {
+                info!("Drop: Sent SIGKILL to gpclient process");
+            }
+
+            // Fallback: pkill synchronously
+            let _ = std::process::Command::new("pkill")
+                .arg("-9")
+                .arg("gpclient")
+                .output();
+        }
+
+        // Always try to cleanup lock file
+        cleanup_lock_file();
+    }
+}
+
 fn cleanup_lock_file() {
     match std::fs::remove_file(LOCK_FILE) {
         Ok(_) => info!("Successfully removed lock file"),
