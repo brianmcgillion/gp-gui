@@ -51,34 +51,8 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
-      - name: Build frontend (required for Tauri)
-        run: nix develop --impure -c bash -c 'cd gui && npm install && npm run build'
-
       - name: Run Clippy
-        run: nix develop --impure -c bash -c 'cd gui/src-tauri && cargo clippy --all-targets --all-features -- -D warnings'
-
-  eslint:
-    name: ESLint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-
-      - name: Run ESLint
-        run: nix develop --impure -c bash -c 'cd gui && npm install && npm run lint || true'
-        continue-on-error: true
+        run: nix develop --impure -c cargo clippy --all-targets --all-features -- -D warnings
 
   actionlint:
     name: Action Lint

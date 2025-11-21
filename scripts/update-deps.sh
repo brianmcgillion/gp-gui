@@ -4,7 +4,6 @@
 # This script updates:
 # - Nix flake inputs (flake.lock)
 # - Cargo dependencies (Cargo.lock)
-# - npm dependencies (package-lock.json)
 #
 # Usage: ./scripts/update-deps.sh [OPTIONS]
 #
@@ -12,8 +11,7 @@
 #   --all       Update all dependencies (default)
 #   --nix       Update only Nix flake inputs
 #   --cargo     Update only Cargo dependencies
-#   --npm       Update only npm dependencies
-#   --upgrade   Upgrade source dependencies (Cargo.toml, package.json) to latest versions
+#   --upgrade   Upgrade source dependencies (Cargo.toml) to latest versions
 #   --help      Show this help message
 #
 # Examples:
@@ -97,9 +95,8 @@ update_cargo() {
     if $CARGO_CMD upgrade --help &> /dev/null; then
       warn "⚠️  UPGRADE MODE: This will modify Cargo.toml files!"
 
-      # cargo-upgrade doesn't support --workspace, run in each package directory
-      info "Running cargo upgrade in gui/src-tauri..."
-      (cd gui/src-tauri && $CARGO_CMD upgrade) || warn "gui/src-tauri cargo upgrade failed"
+      info "Running cargo upgrade in project root..."
+      $CARGO_CMD upgrade || warn "cargo upgrade failed"
 
       success "Cargo.toml files upgraded"
     else
@@ -111,136 +108,14 @@ update_cargo() {
   fi
 
   # Update workspace dependencies
-  info "Updating workspace Cargo.lock..."
-  $CARGO_CMD update --workspace
+  info "Updating Cargo.lock..."
+  $CARGO_CMD update
 
   success "Cargo dependencies updated"
 
   # Show major version changes
   info "Checking for major version changes..."
   git --no-pager diff Cargo.lock 2> /dev/null | grep -E "^[\+\-]version = " | head -20 || true
-}
-
-update_npm() {
-  local upgrade_mode=${1:-false}
-
-  if [[ $upgrade_mode == true ]]; then
-    info "Upgrading npm dependencies (will update package.json versions)..."
-  else
-    info "Updating npm dependencies (lock file only)..."
-  fi
-
-  if [[ ! -d "gui" ]]; then
-    error "gui directory not found"
-    return 1
-  fi
-
-  if ! command -v npm &> /dev/null; then
-    warn "npm not found in PATH, trying via nix develop..."
-    if ! nix develop -c npm --version &> /dev/null; then
-      error "npm is not available"
-      return 1
-    fi
-    NPM_CMD="nix develop -c npm"
-  else
-    NPM_CMD="npm"
-  fi
-
-  cd gui
-
-  if [[ $upgrade_mode == true ]]; then
-    warn "⚠️  UPGRADE MODE: This will modify package.json!"
-    info "Running npm upgrade (upgrades package.json to latest within semver ranges)..."
-    $NPM_CMD upgrade
-
-    # Show what packages have newer versions available
-    info "Checking for packages with newer major versions available..."
-    $NPM_CMD outdated || true
-  else
-    # Update npm dependencies (lock file only)
-    info "Updating package-lock.json..."
-    $NPM_CMD update
-
-    # Check for outdated packages
-    info "Checking for outdated packages..."
-    $NPM_CMD outdated || true
-  fi
-
-  cd ..
-
-  success "npm dependencies updated"
-
-  # Update npm hash in Nix if needed
-  info "Updating npm dependencies hash in Nix..."
-  update_npm_hash
-}
-
-update_npm_hash() {
-  if ! command -v nix &> /dev/null; then
-    warn "Nix not available, skipping npm hash update"
-    return 0
-  fi
-
-  info "Computing new npm dependencies hash..."
-
-  # Path to the Nix file containing the npmDeps hash
-  NIX_FILE="packages/gp-gui/default.nix"
-
-  if [[ ! -f $NIX_FILE ]]; then
-    error "Cannot find $NIX_FILE"
-    return 1
-  fi
-
-  # Get current hash from packages/gp-gui/default.nix
-  CURRENT_HASH=$(grep -oP 'hash = "\K[^"]+' "$NIX_FILE" | head -1 || echo "")
-
-  if [[ -z $CURRENT_HASH ]]; then
-    warn "Could not find current npm hash in $NIX_FILE"
-    return 0
-  fi
-
-  info "Current npm hash: $CURRENT_HASH"
-
-  # Set a fake hash to force a rebuild
-  FAKE_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-  sed -i "s|hash = \"$CURRENT_HASH\"|hash = \"$FAKE_HASH\"|g" "$NIX_FILE"
-
-  # Try to build and capture the hash mismatch error
-  info "Building to determine correct hash..."
-  BUILD_OUTPUT=$(nix build .#gp-gui --no-link 2>&1 || true)
-
-  # Extract the "got:" hash from the error message
-  NEW_HASH=$(echo "$BUILD_OUTPUT" | grep -oP 'got:\s+\K(sha256-[A-Za-z0-9+/=]+)' | head -1)
-
-  if [[ -z $NEW_HASH ]]; then
-    # Restore original hash if we couldn't determine the new one
-    warn "Could not determine new hash, restoring original"
-    sed -i "s|hash = \"$FAKE_HASH\"|hash = \"$CURRENT_HASH\"|g" "$NIX_FILE"
-    return 0
-  fi
-
-  if [[ $CURRENT_HASH != "$NEW_HASH" ]]; then
-    info "npm hash changed:"
-    info "  Old: $CURRENT_HASH"
-    info "  New: $NEW_HASH"
-
-    # Update to the correct hash
-    sed -i "s|hash = \"$FAKE_HASH\"|hash = \"$NEW_HASH\"|g" "$NIX_FILE"
-    success "Updated npm hash in $NIX_FILE"
-
-    # Verify the fix worked
-    info "Verifying npm hash fix..."
-    if nix build .#gp-gui --no-link 2>&1 | grep -q "hash mismatch\|ERROR: npmDepsHash"; then
-      error "Hash update failed - manual intervention required"
-      return 1
-    else
-      success "npm hash verified successfully"
-    fi
-  else
-    # Hash unchanged, restore it
-    sed -i "s|hash = \"$FAKE_HASH\"|hash = \"$CURRENT_HASH\"|g" "$NIX_FILE"
-    info "npm hash unchanged"
-  fi
 }
 
 verify_updates() {
@@ -293,7 +168,6 @@ main() {
   local update_all=true
   local update_nix_only=false
   local update_cargo_only=false
-  local update_npm_only=false
   local upgrade_mode=false
 
   # Parse arguments
@@ -310,10 +184,6 @@ main() {
       update_all=false
       update_cargo_only=true
       ;;
-    --npm)
-      update_all=false
-      update_npm_only=true
-      ;;
     --upgrade)
       upgrade_mode=true
       ;;
@@ -326,8 +196,7 @@ main() {
       echo "  --all       Update all dependencies (default)"
       echo "  --nix       Update only Nix flake inputs"
       echo "  --cargo     Update only Cargo dependencies"
-      echo "  --npm       Update only npm dependencies"
-      echo "  --upgrade   Upgrade source dependencies (Cargo.toml, package.json)"
+      echo "  --upgrade   Upgrade source dependencies (Cargo.toml)"
       echo "              to latest compatible versions (potentially breaking)"
       echo "  --help      Show this help message"
       echo ""
@@ -359,7 +228,7 @@ main() {
 
   if [[ $upgrade_mode == true ]]; then
     warn "⚠️  UPGRADE MODE ENABLED"
-    warn "This will modify source files (Cargo.toml, package.json)"
+    warn "This will modify source files (Cargo.toml)"
     warn "and may introduce breaking changes!"
     warn "Please review all changes and test thoroughly before committing."
     echo ""
@@ -370,12 +239,9 @@ main() {
     update_nix || warn "Nix update failed"
     echo ""
     update_cargo "$upgrade_mode" || warn "Cargo update failed"
-    echo ""
-    update_npm "$upgrade_mode" || warn "npm update failed"
   else
     [[ $update_nix_only == true ]] && update_nix
     [[ $update_cargo_only == true ]] && update_cargo "$upgrade_mode"
-    [[ $update_npm_only == true ]] && update_npm "$upgrade_mode"
   fi
 
   echo ""

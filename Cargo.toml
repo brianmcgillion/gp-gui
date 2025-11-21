@@ -1,13 +1,27 @@
-[workspace]
-members = ["gui/src-tauri"]
-resolver = "2"
-
-[workspace.package]
+[package]
+name = "gp-gui"
 version = "1.0.0"
 edition = "2024"
-
 authors = ["Brian McGillion <bmg.avoin@gmail.com>"]
 license = "GPL-3.0"
+
+[[bin]]
+name = "gp-gui"
+path = "src/main.rs"
+
+[dependencies]
+iced = { version = "0.12", features = ["tokio", "debug"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "5"
+log = "0.4"
+env_logger = "0.11"
+anyhow = "1"
+chrono = "0.4"
+ctrlc = "3"
+directories = "5"
+nix = { version = "0.30", features = ["user"] }
 
 [profile.release]
 opt-level = 'z'

@@ -108,10 +108,6 @@
             check-json = {
               enable = true;
               stages = [ "pre-commit" ];
-              excludes = [
-                # TypeScript config files use JSONC (JSON with comments)
-                "tsconfig.*\\.json$"
-              ];
             };
 
             check-toml = {
@@ -146,25 +142,6 @@
               entry = "${pkgs.cargo}/bin/cargo clippy --workspace -- -D warnings";
               files = "\\.(rs|toml)$";
               pass_filenames = false;
-            };
-
-            # JavaScript/TypeScript checks
-            # NOTE: prettier is handled by treefmt - don't enable it separately
-            # to avoid conflicts where both try to format the same files
-            prettier = {
-              enable = false; # Disabled: treefmt handles prettier formatting
-              stages = [ "pre-commit" ];
-              excludes = [
-                "package-lock\\.json$"
-                "node_modules/"
-              ];
-            };
-
-            # ESLint for JavaScript/TypeScript (if eslint config exists)
-            eslint = {
-              enable = false; # Enable if you add .eslintrc
-              stages = [ "pre-commit" ];
-              files = "\\.(js|ts|tsx|jsx)$";
             };
 
             # Shell script checks

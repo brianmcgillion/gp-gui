@@ -159,7 +159,7 @@ pub fn save_config(config: &UserConfig) -> Result<()> {
 ///
 /// `Ok(Some(UserConfig))` if config exists, `Ok(None)` if it doesn't.
 /// Never returns an error.
-#[tauri::command]
+#[allow(dead_code)]
 pub fn load_user_config() -> Result<Option<UserConfig>, String> {
     Ok(load_config())
 }
@@ -177,7 +177,7 @@ pub fn load_user_config() -> Result<Option<UserConfig>, String> {
 ///
 /// - `Ok(())` if saved successfully
 /// - `Err(String)` with error message if saving failed
-#[tauri::command]
+#[allow(dead_code)]
 pub fn save_user_config(vpn_server: String, username: String) -> Result<(), String> {
     let config = UserConfig::new(vpn_server, username);
     save_config(&config).map_err(|e| e.to_string())
