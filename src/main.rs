@@ -24,7 +24,11 @@ fn main() -> iced::Result {
     GpGui::run(Settings {
         window: iced::window::Settings {
             size: iced::Size::new(500.0, 450.0),
-            resizable: false,
+            min_size: Some(iced::Size::new(400.0, 350.0)),
+            max_size: Some(iced::Size::new(700.0, 600.0)),
+            resizable: true,
+            decorations: true,
+            transparent: false,
             ..Default::default()
         },
         ..Default::default()

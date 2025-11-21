@@ -70,7 +70,8 @@ craneLib.buildPackage (
             pkgs.xorg.libXi
             pkgs.xorg.libXrandr
           ]
-        }
+        } \
+        --set-default WINIT_UNIX_BACKEND wayland
     '';
 
     # Expose dependencies for inspection
