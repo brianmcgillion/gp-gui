@@ -291,7 +291,7 @@ pub async fn connect_gpclient(
     config: GpclientConfig,
     state: State<'_, Arc<GpclientState>>,
 ) -> Result<String, String> {
-    info!("Starting gpclient connection to {}", config.gateway);
+    info!("Starting gpclient connection");
 
     let mut process = state.process.lock().await;
 
@@ -402,15 +402,12 @@ pub async fn connect_gpclient(
                 }
             );
             info!(
-                "  args: connect {} --csd-wrapper {} --user {} --passwd-on-stdin {}",
+                "  args: connect {} --csd-wrapper <path> --user <redacted> --passwd-on-stdin <gateway>",
                 if config.as_gateway {
                     "--as-gateway"
                 } else {
                     ""
-                },
-                config.csd_wrapper.as_ref().unwrap_or(&"<none>".to_string()),
-                config.username,
-                config.gateway
+                }
             );
             info!("Password order: sudo password first, then VPN password");
 
@@ -447,15 +444,12 @@ pub async fn connect_gpclient(
             }
         );
         info!(
-            "  args: connect {} --csd-wrapper {} --user {} --passwd-on-stdin {}",
+            "  args: connect {} --csd-wrapper <path> --user <redacted> --passwd-on-stdin <gateway>",
             if config.as_gateway {
                 "--as-gateway"
             } else {
                 ""
-            },
-            config.csd_wrapper.as_ref().unwrap_or(&"<none>".to_string()),
-            config.username,
-            config.gateway
+            }
         );
 
         let mut child = cmd
