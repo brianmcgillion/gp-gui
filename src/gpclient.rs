@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::io::AsyncWriteExt;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
@@ -11,6 +12,9 @@ use tokio::time::{Duration, sleep};
 
 const GPCLIENT_BINARY: &str = "/run/wrappers/bin/gpclient";
 const LOCK_FILE: &str = "/var/run/gpclient.lock";
+
+/// Global storage for the gpclient process ID, used for cleanup on exit
+static GPCLIENT_PID: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VpnConfig {
@@ -85,21 +89,42 @@ impl GpclientProcess {
     }
 
     pub async fn disconnect(&mut self) -> Result<()> {
+        info!("Disconnecting VPN using gpclient disconnect command");
+
+        // First, try the proper disconnect command
+        let disconnect_result = Command::new(GPCLIENT_BINARY)
+            .arg("disconnect")
+            .output()
+            .await;
+
+        match disconnect_result {
+            Ok(output) if output.status.success() => {
+                info!("gpclient disconnect command succeeded");
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                warn!("gpclient disconnect returned non-zero: {}", stderr);
+            }
+            Err(e) => {
+                warn!("Failed to run gpclient disconnect: {}", e);
+            }
+        }
+
+        // Also kill our tracked child process if it exists
         if let Some(mut child) = self.child.take() {
-            info!("Killing gpclient process");
+            let pid = child.id();
+            info!("Cleaning up gpclient child process (pid: {:?})", pid);
 
             if let Err(e) = child.kill().await {
                 warn!("Failed to kill gpclient process: {}", e);
-            } else {
-                info!("Sent SIGKILL to gpclient process");
             }
 
-            let _ = Command::new("pkill")
-                .arg("-9")
-                .arg("gpclient")
-                .output()
-                .await;
+            // Wait for process to exit
+            let _ = child.wait().await;
         }
+
+        // Clear the global PID
+        GPCLIENT_PID.store(0, Ordering::SeqCst);
 
         cleanup_lock_file();
         Ok(())
@@ -108,22 +133,38 @@ impl GpclientProcess {
 
 impl Drop for GpclientProcess {
     fn drop(&mut self) {
-        if let Some(mut child) = self.child.take() {
-            info!("Drop: Cleaning up gpclient process");
+        info!("Drop: Cleaning up gpclient process");
 
-            // Attempt synchronous kill
+        // Try the proper disconnect command first (synchronous)
+        let disconnect_result = std::process::Command::new(GPCLIENT_BINARY)
+            .arg("disconnect")
+            .output();
+
+        match disconnect_result {
+            Ok(output) if output.status.success() => {
+                info!("Drop: gpclient disconnect command succeeded");
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                warn!("Drop: gpclient disconnect returned non-zero: {}", stderr);
+            }
+            Err(e) => {
+                warn!("Drop: Failed to run gpclient disconnect: {}", e);
+            }
+        }
+
+        // Also kill our tracked child process if it exists
+        if let Some(mut child) = self.child.take() {
+            let pid = child.id();
+            info!("Drop: Killing gpclient child process (pid: {:?})", pid);
+
             if let Err(e) = child.start_kill() {
                 warn!("Drop: Failed to kill gpclient process: {}", e);
-            } else {
-                info!("Drop: Sent SIGKILL to gpclient process");
             }
-
-            // Fallback: pkill synchronously
-            let _ = std::process::Command::new("pkill")
-                .arg("-9")
-                .arg("gpclient")
-                .output();
         }
+
+        // Clear the global PID
+        GPCLIENT_PID.store(0, Ordering::SeqCst);
 
         // Always try to cleanup lock file
         cleanup_lock_file();
@@ -186,6 +227,12 @@ pub async fn connect_vpn(state: VpnState, config: VpnConfig) -> Result<String> {
 
     // Spawn child outside the lock
     let mut child = cmd.spawn().context("Failed to spawn gpclient")?;
+
+    // Store the PID globally for cleanup on exit
+    if let Some(pid) = child.id() {
+        GPCLIENT_PID.store(pid, Ordering::SeqCst);
+        info!("Started gpclient with PID: {}", pid);
+    }
 
     // Write password outside the lock
     if let Some(mut stdin) = child.stdin.take() {
@@ -275,15 +322,65 @@ pub async fn disconnect_vpn(state: VpnState) -> Result<String> {
     Ok("Disconnected successfully".to_string())
 }
 
+/// Kill gpclient process by its stored PID
+fn kill_gpclient_by_pid() {
+    let pid = GPCLIENT_PID.load(Ordering::SeqCst);
+    if pid != 0 {
+        info!("Killing gpclient by PID: {}", pid);
+        // Use kill command with specific PID
+        let result = std::process::Command::new("kill")
+            .arg("-9")
+            .arg(pid.to_string())
+            .output();
+
+        match result {
+            Ok(output) if output.status.success() => {
+                info!("Successfully killed gpclient (PID: {})", pid);
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                // Process might already be dead, which is fine
+                if !stderr.contains("No such process") {
+                    warn!("Failed to kill gpclient (PID: {}): {}", pid, stderr);
+                }
+            }
+            Err(e) => {
+                warn!("Failed to execute kill command: {}", e);
+            }
+        }
+
+        GPCLIENT_PID.store(0, Ordering::SeqCst);
+    }
+}
+
 /// Cleanup function to call on application exit
 pub fn cleanup_on_exit() {
     info!("Performing cleanup on exit");
 
-    // Kill any running gpclient processes
-    let _ = std::process::Command::new("pkill")
-        .arg("-9")
-        .arg("gpclient")
+    // Try the proper disconnect command first
+    let disconnect_result = std::process::Command::new(GPCLIENT_BINARY)
+        .arg("disconnect")
         .output();
+
+    match disconnect_result {
+        Ok(output) if output.status.success() => {
+            info!("cleanup_on_exit: gpclient disconnect command succeeded");
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            warn!(
+                "cleanup_on_exit: gpclient disconnect returned non-zero: {}",
+                stderr
+            );
+            // Fallback: kill by stored PID
+            kill_gpclient_by_pid();
+        }
+        Err(e) => {
+            warn!("cleanup_on_exit: Failed to run gpclient disconnect: {}", e);
+            // Fallback: kill by stored PID
+            kill_gpclient_by_pid();
+        }
+    }
 
     // Clean up lock file
     cleanup_lock_file();
