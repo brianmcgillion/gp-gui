@@ -35,6 +35,7 @@ Thumbs.db
 .pre-commit-config.yaml
 .devenv-root
 .aider*
+.serena/
 
 # Act (local GitHub Actions testing)
 .actrc

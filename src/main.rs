@@ -1,6 +1,8 @@
 use iced::{
-    Application, Command, Element, Event, Length, Settings, Subscription, Theme, keyboard,
-    widget::{Space, button, column, container, row, text, text_input, text_input::Id},
+    Element, Event, Length, Size, Subscription, Task, Theme, keyboard,
+    widget::operation::{focus_next, focus_previous},
+    widget::{Id, Space, button, column, container, row, text, text_input},
+    window,
 };
 use log::info;
 
@@ -15,18 +17,20 @@ fn main() -> iced::Result {
     // Setup signal handlers for cleanup on SIGINT/SIGTERM
     setup_signal_handlers();
 
-    GpGui::run(Settings {
-        window: iced::window::Settings {
-            size: iced::Size::new(500.0, 450.0),
-            min_size: Some(iced::Size::new(400.0, 350.0)),
-            max_size: Some(iced::Size::new(700.0, 600.0)),
+    iced::application(GpGui::new, GpGui::update, GpGui::view)
+        .title(GpGui::title)
+        .window(window::Settings {
+            size: Size::new(500.0, 450.0),
+            min_size: Some(Size::new(400.0, 350.0)),
+            max_size: Some(Size::new(700.0, 600.0)),
             resizable: true,
             decorations: true,
             transparent: false,
             ..Default::default()
-        },
-        ..Default::default()
-    })
+        })
+        .theme(GpGui::theme)
+        .subscription(GpGui::subscription)
+        .run()
 }
 
 fn setup_signal_handlers() {
@@ -80,13 +84,8 @@ enum ConnectionState {
     Connected { connected_at: String },
 }
 
-impl Application for GpGui {
-    type Message = Message;
-    type Executor = iced::executor::Default;
-    type Flags = ();
-    type Theme = Theme;
-
-    fn new(_flags: ()) -> (Self, Command<Message>) {
+impl GpGui {
+    fn new() -> (Self, Task<Message>) {
         let config = config::load_config();
 
         (
@@ -107,7 +106,7 @@ impl Application for GpGui {
                 username_id: Id::new("username"),
                 password_id: Id::new("password"),
             },
-            Command::none(),
+            Task::none(),
         )
     }
 
@@ -119,7 +118,7 @@ impl Application for GpGui {
         }
     }
 
-    fn update(&mut self, message: Message) -> Command<Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::EventOccurred(event) => {
                 if let Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) = event {
@@ -127,9 +126,9 @@ impl Application for GpGui {
                         keyboard::Key::Named(keyboard::key::Named::Tab) => {
                             // Handle Tab key - move focus forward
                             if modifiers.shift() {
-                                return iced::widget::focus_previous();
+                                return focus_previous();
                             } else {
-                                return iced::widget::focus_next();
+                                return focus_next();
                             }
                         }
                         keyboard::Key::Named(keyboard::key::Named::Enter) => {
@@ -149,24 +148,24 @@ impl Application for GpGui {
                         _ => {}
                     }
                 }
-                Command::none()
+                Task::none()
             }
             Message::GatewayChanged(gateway) => {
                 self.gateway = gateway;
-                Command::none()
+                Task::none()
             }
             Message::UsernameChanged(username) => {
                 self.username = username;
-                Command::none()
+                Task::none()
             }
             Message::PasswordChanged(password) => {
                 self.password = password;
-                Command::none()
+                Task::none()
             }
             Message::FocusNext => {
                 // This is called when Enter is pressed in gateway or username field
                 // Focus moves: gateway → username → password (then ConnectPressed)
-                iced::widget::focus_next()
+                focus_next()
             }
             Message::ConnectPressed => {
                 info!("[UI] Connect button pressed");
@@ -182,7 +181,7 @@ impl Application for GpGui {
 
                 let state = self.vpn_state.clone();
 
-                Command::perform(
+                Task::perform(
                     async move { gpclient::connect_vpn(state, config).await },
                     |result| Message::Connected(result.map_err(|e| e.to_string())),
                 )
@@ -191,7 +190,7 @@ impl Application for GpGui {
                 info!("[UI] Disconnect button pressed");
                 let state = self.vpn_state.clone();
 
-                Command::perform(
+                Task::perform(
                     async move { gpclient::disconnect_vpn(state).await },
                     |result| Message::Disconnected(result.map_err(|e| e.to_string())),
                 )
@@ -214,7 +213,7 @@ impl Application for GpGui {
                         self.error = Some(e);
                     }
                 }
-                Command::none()
+                Task::none()
             }
             Message::Disconnected(result) => {
                 match result {
@@ -228,7 +227,7 @@ impl Application for GpGui {
                     }
                 }
                 self.state = ConnectionState::Disconnected;
-                Command::none()
+                Task::none()
             }
         }
     }
@@ -243,8 +242,8 @@ impl Application for GpGui {
         container(content)
             .width(Length::Fill)
             .height(Length::Fill)
-            .center_x()
-            .center_y()
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
             .into()
     }
 
@@ -255,22 +254,13 @@ impl Application for GpGui {
     fn subscription(&self) -> Subscription<Message> {
         iced::event::listen().map(Message::EventOccurred)
     }
-}
 
-impl Drop for GpGui {
-    fn drop(&mut self) {
-        info!("GpGui dropping, cleaning up...");
-        gpclient::cleanup_on_exit();
-    }
-}
-
-impl GpGui {
     fn view_disconnected(&self) -> Element<'_, Message> {
         let mut content = column![
             text("GlobalProtect VPN").size(28),
-            Space::with_height(5),
+            Space::new().height(5),
             text("● Disconnected").size(14),
-            Space::with_height(15),
+            Space::new().height(15),
             text("VPN Server").size(13),
             text_input("e.g., access.tii.ae", &self.gateway)
                 .id(self.gateway_id.clone())
@@ -278,7 +268,7 @@ impl GpGui {
                 .on_submit(Message::FocusNext)
                 .padding(8)
                 .size(14),
-            Space::with_height(12),
+            Space::new().height(12),
             text("Username").size(13),
             text_input("Username", &self.username)
                 .id(self.username_id.clone())
@@ -286,7 +276,7 @@ impl GpGui {
                 .on_submit(Message::FocusNext)
                 .padding(8)
                 .size(14),
-            Space::with_height(12),
+            Space::new().height(12),
             text("Password").size(13),
             text_input("Password", &self.password)
                 .id(self.password_id.clone())
@@ -295,7 +285,7 @@ impl GpGui {
                 .padding(8)
                 .size(14)
                 .secure(true),
-            Space::with_height(15),
+            Space::new().height(15),
             button(text("Authenticate & Connect").size(16))
                 .on_press(Message::ConnectPressed)
                 .padding(10)
@@ -306,7 +296,7 @@ impl GpGui {
         .max_width(450);
 
         if let Some(error) = &self.error {
-            content = content.push(Space::with_height(12));
+            content = content.push(Space::new().height(12));
             content = content.push(text(format!("Error: {}", error)).size(13));
         }
 
@@ -316,9 +306,9 @@ impl GpGui {
     fn view_connecting(&self) -> Element<'_, Message> {
         column![
             text("GlobalProtect VPN").size(28),
-            Space::with_height(20),
+            Space::new().height(20),
             text("● Connecting...").size(18),
-            Space::with_height(15),
+            Space::new().height(15),
             text("Please wait while the VPN connection is established...").size(13),
         ]
         .spacing(8)
@@ -328,32 +318,33 @@ impl GpGui {
     }
 
     fn view_connected(&self, connected_at: &str) -> Element<'_, Message> {
+        let connected_at = connected_at.to_string();
         column![
             text("GlobalProtect VPN").size(28),
-            Space::with_height(5),
+            Space::new().height(5),
             text("● Connected").size(18),
-            Space::with_height(20),
+            Space::new().height(20),
             row![
                 text("Gateway:").size(13),
-                Space::with_width(8),
-                text(&self.gateway).size(13)
+                Space::new().width(8),
+                text(self.gateway.clone()).size(13)
             ]
             .spacing(4),
-            Space::with_height(8),
+            Space::new().height(8),
             row![
                 text("Username:").size(13),
-                Space::with_width(8),
-                text(&self.username).size(13)
+                Space::new().width(8),
+                text(self.username.clone()).size(13)
             ]
             .spacing(4),
-            Space::with_height(8),
+            Space::new().height(8),
             row![
                 text("Connected at:").size(13),
-                Space::with_width(8),
+                Space::new().width(8),
                 text(connected_at).size(13)
             ]
             .spacing(4),
-            Space::with_height(20),
+            Space::new().height(20),
             button(text("Disconnect").size(16))
                 .on_press(Message::DisconnectPressed)
                 .padding(10)
@@ -363,5 +354,12 @@ impl GpGui {
         .padding(25)
         .max_width(450)
         .into()
+    }
+}
+
+impl Drop for GpGui {
+    fn drop(&mut self) {
+        info!("GpGui dropping, cleaning up...");
+        gpclient::cleanup_on_exit();
     }
 }
