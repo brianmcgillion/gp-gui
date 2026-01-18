@@ -21,7 +21,7 @@
           # Nix
           # Standard Nix formatter according to RFC 166
           nixfmt.enable = true;
-          nixfmt.package = pkgs.nixfmt-rfc-style;
+          nixfmt.package = pkgs.nixfmt;
 
           # Remove dead Nix code
           deadnix.enable = true;

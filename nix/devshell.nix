@@ -8,6 +8,7 @@
     {
       pkgs,
       config,
+      lib,
       ...
     }:
     let
@@ -56,7 +57,9 @@
             pkgs.jq
           ]
           # Add pre-commit tools (includes treefmt wrapper)
-          ++ config.pre-commit.settings.enabledPackages;
+          ++ config.pre-commit.settings.enabledPackages
+          # Add treefmt programs except rustfmt (already in rustToolchain)
+          ++ (lib.attrValues (removeAttrs config.treefmt.build.programs [ "rustfmt" ]));
 
           # Install pre-commit hooks for local development
           startup.hook.text = config.pre-commit.installationScript;
