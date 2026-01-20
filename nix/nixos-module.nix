@@ -95,10 +95,6 @@ in
       };
     };
 
-    # Ensure /var/run exists and has proper permissions
-    systemd.tmpfiles.rules = [
-      "d /var/run 0755 root root -"
-    ];
   };
 
   meta.maintainers = with maintainers; [ ];
