@@ -20,7 +20,7 @@ anyhow = "1"
 chrono = "0.4"
 ctrlc = "3"
 directories = "6"
-nix = { version = "0.30", features = ["user"] }
+nix = { version = "0.31", features = ["user"] }
 
 [profile.release]
 opt-level = 'z'
