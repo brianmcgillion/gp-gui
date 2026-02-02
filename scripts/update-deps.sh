@@ -124,8 +124,8 @@ verify_updates() {
   # Check if nix build still works
   if command -v nix &> /dev/null; then
     info "Testing Nix build..."
-    if nix build .#gp-gui --dry-run 2>&1 | grep -q "error:"; then
-      warn "Nix build dry-run reported errors"
+    if nix build .#gp-gui 2>&1 | grep -q "error:"; then
+      warn "Nix build reported errors"
     else
       success "Nix build verification passed"
     fi
@@ -134,7 +134,7 @@ verify_updates() {
   # Run flake checks
   if command -v nix &> /dev/null; then
     info "Running flake checks..."
-    if nix flake check --no-build 2>&1 | grep -q "error:"; then
+    if nix flake check 2>&1 | grep -q "error:"; then
       warn "Flake check reported errors"
     else
       success "Flake check passed"
@@ -161,7 +161,7 @@ show_summary() {
   echo "  1. Review changes: git diff"
   echo "  2. Test build: nix build .#gp-gui"
   echo "  3. Run checks: nix flake check"
-  echo "  4. Commit: git add -A && git commit -m 'chore: update dependencies'"
+  echo "  4. Commit: git add -A && git commit -sm 'chore: update dependencies'"
 }
 
 main() {
