@@ -45,10 +45,10 @@
             pkgs.wayland
             pkgs.libxkbcommon
             pkgs.libGL
-            pkgs.xorg.libXcursor
-            pkgs.xorg.libXrandr
-            pkgs.xorg.libXi
-            pkgs.xorg.libX11
+            pkgs.libXcursor
+            pkgs.libXrandr
+            pkgs.libXi
+            pkgs.libX11
             pkgs.vulkan-loader
 
             # Additional tools
@@ -106,10 +106,10 @@
               pkgs.libxkbcommon
               pkgs.libGL
               pkgs.vulkan-loader
-              pkgs.xorg.libXcursor
-              pkgs.xorg.libXrandr
-              pkgs.xorg.libXi
-              pkgs.xorg.libX11
+              pkgs.libXcursor
+              pkgs.libXrandr
+              pkgs.libXi
+              pkgs.libX11
             ];
           }
         ];

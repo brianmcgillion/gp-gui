@@ -30,10 +30,10 @@ let
       libxkbcommon
       vulkan-loader
       # X11 libraries (for compatibility)
-      xorg.libX11
-      xorg.libXcursor
-      xorg.libXi
-      xorg.libXrandr
+      libX11
+      libXcursor
+      libXi
+      libXrandr
       # Runtime dependencies
       gpauth
       gpclient
