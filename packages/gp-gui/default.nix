@@ -65,10 +65,10 @@ craneLib.buildPackage (
             pkgs.wayland
             pkgs.libxkbcommon
             pkgs.vulkan-loader
-            pkgs.xorg.libX11
-            pkgs.xorg.libXcursor
-            pkgs.xorg.libXi
-            pkgs.xorg.libXrandr
+            pkgs.libX11
+            pkgs.libXcursor
+            pkgs.libXi
+            pkgs.libXrandr
           ]
         } \
         --set-default WINIT_UNIX_BACKEND wayland
