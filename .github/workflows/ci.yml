@@ -17,12 +17,15 @@ permissions:
 jobs:
   nix-build:
     name: Build with Nix (${{ matrix.system }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
-        system:
-          - x86_64-linux
-          - aarch64-linux
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -39,14 +42,55 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
-      - name: Set up QEMU for cross-compilation
-        if: matrix.system == 'aarch64-linux'
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
-        with:
-          platforms: arm64
-
+      # NixOS VM tests carry requiredSystemFeatures = [ "kvm" "nixos-test" ].
+      # GitHub's ubuntu-24.04-arm runners expose no usable /dev/kvm, so the Nix
+      # daemon there never advertises the "kvm" feature and a plain
+      # `nix flake check` aborts before building anything. Evaluate every flake
+      # output, then build only the checks whose required system features this
+      # runner actually provides.
       - name: Check Nix flake
-        run: nix flake check --show-trace --system ${{ matrix.system }}
+        env:
+          SYSTEM: ${{ matrix.system }}
+        run: |
+          set -euo pipefail
+
+          nix flake check --no-build --show-trace --system "$SYSTEM"
+
+          available=" $(nix config show system-features) "
+          echo "Runner system features:$available"
+
+          mapfile -t names < <(
+            nix eval --json --system "$SYSTEM" ".#checks.$SYSTEM" --apply builtins.attrNames | jq -r '.[]'
+          )
+
+          build=()
+          skipped=()
+          for name in "${names[@]}"; do
+            attr=".#checks.$SYSTEM.$name"
+            drv=$(nix path-info --derivation --system "$SYSTEM" "$attr")
+            required=$(nix derivation show "$drv" |
+              jq -r '[.. | objects | .requiredSystemFeatures? // empty] | first // ""')
+
+            missing=""
+            for feature in $required; do
+              case "$available" in
+              *" $feature "*) ;;
+              *) missing="$missing $feature" ;;
+              esac
+            done
+
+            if [ -n "$missing" ]; then
+              skipped+=("$name (needs:$missing)")
+            else
+              build+=("$attr")
+            fi
+          done
+
+          if [ ${#skipped[@]} -gt 0 ]; then
+            printf '::warning::Skipping check %s: unsupported on this runner\n' "${skipped[@]}"
+          fi
+
+          nix build --no-link --print-build-logs "${build[@]}"
 
       - name: Build gp-gui
         run: nix build .#packages.${{ matrix.system }}.gp-gui --print-build-logs --out-link result-gp-gui

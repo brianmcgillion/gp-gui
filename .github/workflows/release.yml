@@ -15,9 +15,19 @@ permissions:
   contents: write
 
 jobs:
+  # Stage 1: build a native tarball per architecture and upload it as a
+  # workflow artifact. Native ARM64 runner replaces QEMU emulation.
   build-release:
-    name: Build Release
-    runs-on: ubuntu-latest
+    name: Build Release (${{ matrix.system }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -35,7 +45,7 @@ jobs:
             accept-flake-config = true
 
       - name: Build gp-gui
-        run: nix build .#gp-gui --print-build-logs
+        run: nix build .#packages.${{ matrix.system }}.gp-gui --print-build-logs
 
       - name: Create tarball
         run: |
@@ -44,7 +54,33 @@ jobs:
             VERSION="${{ inputs.version }}"
           fi
           mkdir -p dist
-          tar -czf dist/gp-gui-${VERSION}-x86_64-linux.tar.gz -C result/bin gp-gui
+          tar -czf dist/gp-gui-${VERSION}-${{ matrix.system }}.tar.gz -C result/bin gp-gui
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.system }}
+          path: dist/*.tar.gz
+          retention-days: 1
+
+  # Stage 2: collect every arch tarball, generate one combined checksum file,
+  # and publish a single GitHub release.
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: build-release
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Download all release artifacts
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          path: dist
+          pattern: release-*
+          merge-multiple: true
 
       - name: Generate checksums
         run: |
@@ -68,8 +104,9 @@ jobs:
             ### Installation
 
             ```bash
-            # Extract the tarball
+            # Extract the tarball for your architecture
             tar -xzf gp-gui-${{ github.ref_name || inputs.version }}-x86_64-linux.tar.gz
+            # or: gp-gui-${{ github.ref_name || inputs.version }}-aarch64-linux.tar.gz
 
             # Run with sudo (required for VPN)
             sudo ./gp-gui
